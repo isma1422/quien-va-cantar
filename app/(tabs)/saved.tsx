@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, FlatList, Text, StyleSheet, ActivityIndicator, Linking, RefreshControl } from 'react-native';
-import { Event } from '@/services/mockData';
-import { getSavedEvents, unsaveEvent } from '@/services/api';
+import { Event, getSavedEvents, unsaveEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing } from '@/constants/theme';
@@ -60,22 +59,22 @@ export default function SavedScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      {loading ? (
-        <ActivityIndicator size="large" color={Colors[colorScheme].primary} style={{ marginTop: 20 }} />
-      ) : (
-        <FlatList
-          data={events}
-          keyExtractor={(item) => item.id}
-          renderItem={renderEvent}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={loadSavedEvents} />}
-          ListEmptyComponent={
-            <Text style={[styles.emptyText, { color: Colors[colorScheme].textMuted }]}>
-              Aún no has guardado ningún evento.
-            </Text>
-          }
-        />
-      )}
+      <FlatList
+        data={events}
+        keyExtractor={(item) => item.id}
+        renderItem={renderEvent}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadSavedEvents} tintColor={Colors[colorScheme].primary} />}
+        ListEmptyComponent={
+          loading && events.length === 0 ? (
+            <ActivityIndicator size="large" color={Colors[colorScheme].primary} style={{ marginTop: 20 }} />
+          ) : (
+          <Text style={[styles.emptyText, { color: Colors[colorScheme].textMuted }]}>
+            Aún no has guardado ningún evento.
+          </Text>
+          )
+        }
+      />
     </View>
   );
 }

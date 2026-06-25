@@ -40,13 +40,15 @@ export const getCurrentUserRole = async (uid: string): Promise<string> => {
 export const getEvents = async (): Promise<Event[]> => {
   const q = query(collection(db, EVENTS_COL), where('status', '==', 'approved'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
+  const events = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
+  return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 };
 
 export const getPendingEvents = async (): Promise<Event[]> => {
   const q = query(collection(db, EVENTS_COL), where('status', '==', 'pending'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
+  const events = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
+  return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 };
 
 export const saveEvent = async (event_id: string): Promise<void> => {

@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Event } from '@/services/mockData';
-import { getEvents } from '@/services/api';
+import { Event, getEvents, saveEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing } from '@/constants/theme';
@@ -20,6 +19,11 @@ LocaleConfig.defaultLocale = 'es';
 
 export default function EventsScreen() {
   const [selectedDate, setSelectedDate] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [searchQuery, setSearchQuery] = useState('');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const colorScheme = useColorScheme() ?? 'light';
@@ -72,9 +76,26 @@ export default function EventsScreen() {
     };
   }
 
-  const eventsForSelectedDate = selectedDate
+  const eventsForSelectedDate = selectedDate && !searchQuery
     ? events.filter((e) => new Date(e.date).toISOString().split('T')[0] === selectedDate)
-    : events;
+    : (!searchQuery 
+        ? events.filter((e) => new Date(e.date).toISOString().startsWith(currentMonth))
+        : events);
+
+  const filteredEvents = eventsForSelectedDate.filter(e => 
+    e.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    e.place.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSaveEvent = async (id: string) => {
+    try {
+      await saveEvent(id);
+      Alert.alert("Guardado", "El evento se ha añadido a tu pestaña de Guardados.");
+    } catch (e: any) {
+      Alert.alert("Aviso", "Inicia sesión para poder guardar eventos.");
+    }
+  }
 
   const renderEvent = ({ item }: { item: Event }) => (
     <Card>
@@ -86,23 +107,44 @@ export default function EventsScreen() {
       <View style={styles.row}>
         <FontAwesome name="clock-o" size={16} color={Colors[colorScheme].icon} />
         <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted }]}>
-          {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {new Date(item.date).toLocaleDateString('es-ES')} - {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
       <Text style={[styles.eventDescription, { color: Colors[colorScheme].text }]}>{item.description}</Text>
       
-      <Button 
-        title="Comprar Entradas" 
-        onPress={() => Linking.openURL(item.ticket_link).catch(err => console.log(err))} 
-      />
+      <View style={styles.buttonRow}>
+        <Button 
+          title="Comprar Entradas" 
+          style={{flex: 1, marginRight: Spacing.xs}}
+          onPress={() => Linking.openURL(item.ticket_link).catch(err => console.log(err))} 
+        />
+        <Button 
+          title="Guardar" 
+          variant="outline"
+          style={{flex: 1, marginLeft: Spacing.xs}}
+          onPress={() => handleSaveEvent(item.id)} 
+        />
+      </View>
     </Card>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <Calendar
-        markingType={'custom'}
+      <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
+        <TextInput 
+          style={[styles.input, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, marginBottom: Spacing.sm }]}
+          placeholder="Buscar evento, artista o lugar..."
+          placeholderTextColor={Colors[colorScheme].textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {!searchQuery && (
+        <Calendar
+          markingType={'custom'}
         onDayPress={(day: any) => setSelectedDate(day.dateString)}
+        onMonthChange={(month: any) => setCurrentMonth(month.dateString.substring(0, 7))}
         markedDates={markedDates}
         theme={{
           backgroundColor: Colors[colorScheme].card,
@@ -117,22 +159,24 @@ export default function EventsScreen() {
           arrowColor: Colors[colorScheme].primary,
         }}
       />
+      )}
       
-      {loading ? (
-        <ActivityIndicator size="large" color={Colors[colorScheme].primary} style={{ marginTop: 20 }} />
-      ) : (
-        <FlatList
-          data={eventsForSelectedDate}
-          keyExtractor={(item) => item.id}
-          renderItem={renderEvent}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={
+      <FlatList
+        data={filteredEvents}
+        keyExtractor={(item) => item.id}
+        renderItem={renderEvent}
+        contentContainerStyle={styles.listContainer}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadEvents} tintColor={Colors[colorScheme].primary} />}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={Colors[colorScheme].primary} style={{ marginTop: 20 }} />
+          ) : (
             <Text style={[styles.emptyText, { color: Colors[colorScheme].textMuted }]}>
               No se encontraron eventos para {selectedDate || 'estas fechas'}.
             </Text>
-          }
-        />
-      )}
+          )
+        }
+      />
     </View>
   );
 }
@@ -140,6 +184,17 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: Spacing.sm,
+    padding: Spacing.md,
+    fontSize: 16,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Spacing.xs,
   },
   listContainer: {
     padding: Spacing.md,
