@@ -1,98 +1,122 @@
-import {
-  Event,
-  SavedEvent,
-  User,
-  currentEvents,
-  currentSavedEvents,
-  currentUser,
-} from './mockData';
+import { collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { db, auth } from './firebase';
 
-// Delay helper to mock network requests
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+export interface User {
+  uid: string;
+  email: string;
+  role: 'admin' | 'user';
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  place: string;
+  ticket_link: string;
+  status: 'pending' | 'approved';
+  created_by: string;
+}
+
+export interface SavedEvent {
+  id: string;
+  user_id: string;
+  event_id: string;
+}
+
+const EVENTS_COL = 'events';
+const SAVED_EVENTS_COL = 'saved_events';
+const USERS_COL = 'users';
+
+// Real logic connected to Firestore:
+export const getCurrentUserRole = async (uid: string): Promise<string> => {
+   const userDoc = await getDoc(doc(db, USERS_COL, uid));
+   if (userDoc.exists()) {
+      return userDoc.data().role || 'user';
+   }
+   return 'user';
+}
 
 export const getEvents = async (): Promise<Event[]> => {
-  await delay(500);
-  return currentEvents.filter((e) => e.status === 'approved');
+  const q = query(collection(db, EVENTS_COL), where('status', '==', 'approved'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
 };
 
 export const getPendingEvents = async (): Promise<Event[]> => {
-  await delay(500);
-  return currentEvents.filter((e) => e.status === 'pending');
-};
-
-export const getEventById = async (id: string): Promise<Event | undefined> => {
-  await delay(200);
-  return currentEvents.find((e) => e.id === id);
+  const q = query(collection(db, EVENTS_COL), where('status', '==', 'pending'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
 };
 
 export const saveEvent = async (event_id: string): Promise<void> => {
-  await delay(300);
-  if (!currentUser) throw new Error('Not logged in');
-  if (currentSavedEvents.some((s) => s.user_id === currentUser?.uid && s.event_id === event_id)) {
-    return; // Already saved
-  }
-  currentSavedEvents.push({
-    id: `s${Date.now()}`,
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('No has iniciado sesión');
+  
+  // check if already saved
+  const q = query(collection(db, SAVED_EVENTS_COL), 
+     where('user_id', '==', currentUser.uid),
+     where('event_id', '==', event_id)
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) return; 
+
+  await addDoc(collection(db, SAVED_EVENTS_COL), {
     user_id: currentUser.uid,
-    event_id,
+    event_id
   });
 };
 
 export const unsaveEvent = async (event_id: string): Promise<void> => {
-  await delay(300);
-  if (!currentUser) throw new Error('Not logged in');
-  const index = currentSavedEvents.findIndex(
-    (s) => s.user_id === currentUser?.uid && s.event_id === event_id
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('No has iniciado sesión');
+  const q = query(collection(db, SAVED_EVENTS_COL), 
+     where('user_id', '==', currentUser.uid),
+     where('event_id', '==', event_id)
   );
-  if (index !== -1) {
-    currentSavedEvents.splice(index, 1);
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+     for (const document of snap.docs) {
+         await deleteDoc(doc(db, SAVED_EVENTS_COL, document.id));
+     }
   }
 };
 
 export const getSavedEvents = async (): Promise<Event[]> => {
-  await delay(400);
+  const currentUser = auth.currentUser;
   if (!currentUser) return [];
-  const savedIds = currentSavedEvents
-    .filter((s) => s.user_id === currentUser?.uid)
-    .map((s) => s.event_id);
-  return currentEvents.filter((e) => savedIds.includes(e.id));
+  const q = query(collection(db, SAVED_EVENTS_COL), where('user_id', '==', currentUser.uid));
+  const snap = await getDocs(q);
+  if (snap.empty) return [];
+
+  const savedIds = snap.docs.map((d: any) => d.data().event_id);
+  
+  const allApproved = await getEvents();
+  return allApproved.filter(e => savedIds.includes(e.id));
 };
 
 export const createEvent = async (
   eventData: Omit<Event, 'id' | 'status' | 'created_by'>
 ): Promise<Event> => {
-  await delay(600);
-  if (!currentUser) throw new Error('Not logged in');
-  const newEvent: Event = {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('No has iniciado sesión');
+  
+  const newRef = await addDoc(collection(db, EVENTS_COL), {
     ...eventData,
-    id: `e${Date.now()}`,
     status: 'pending',
-    created_by: currentUser.uid,
-  };
-  currentEvents.push(newEvent);
-  return newEvent;
+    created_by: currentUser.uid
+  });
+  
+  return { id: newRef.id, ...eventData, status: 'pending', created_by: currentUser.uid };
 };
 
 export const updateEventStatus = async (
   id: string,
   status: 'pending' | 'approved'
-): Promise<Event> => {
-  await delay(500);
-  if (currentUser?.role !== 'admin') throw new Error('Unauthorized');
-  const event = currentEvents.find((e) => e.id === id);
-  if (!event) throw new Error('Not found');
-  event.status = status;
-  return event;
+): Promise<void> => {
+  await updateDoc(doc(db, EVENTS_COL, id), { status });
 };
 
 export const deleteEvent = async (id: string): Promise<void> => {
-  await delay(500);
-  if (currentUser?.role !== 'admin') throw new Error('Unauthorized');
-  const index = currentEvents.findIndex((e) => e.id === id);
-  if (index !== -1) {
-    currentEvents.splice(index, 1);
-  }
+  await deleteDoc(doc(db, EVENTS_COL, id));
 };
-
-// Expose current user for UI logic
-export const getCurrentUser = () => currentUser;
