@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, FlatList, Text, StyleSheet, ActivityIndicator, Linking, RefreshControl } from 'react-native';
+import { View, FlatList, Text, StyleSheet, ActivityIndicator, Linking, RefreshControl, Image } from 'react-native';
 import { Event, getSavedEvents, unsaveEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -30,6 +30,9 @@ export default function SavedScreen() {
 
   const renderEvent = ({ item }: { item: Event }) => (
     <Card>
+      {item.image_url ? (
+        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
+      ) : null}
       <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
       <View style={styles.row}>
         <FontAwesome name="map-marker" size={16} color={Colors[colorScheme].icon} />

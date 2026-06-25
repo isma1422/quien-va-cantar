@@ -16,6 +16,7 @@ export interface Event {
   ticket_link: string;
   status: 'pending' | 'approved';
   created_by: string;
+  image_url?: string;
 }
 
 export interface SavedEvent {
@@ -49,6 +50,21 @@ export const getPendingEvents = async (): Promise<Event[]> => {
   const snapshot = await getDocs(q);
   const events = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
   return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
+export const getMyEvents = async (): Promise<Event[]> => {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('No has iniciado sesión');
+  const q = query(collection(db, EVENTS_COL), where('created_by', '==', currentUser.uid));
+  const snapshot = await getDocs(q);
+  const events = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() } as Event));
+  return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
+export const getEventById = async (id: string): Promise<Event> => {
+  const eventDoc = await getDoc(doc(db, EVENTS_COL, id));
+  if (!eventDoc.exists()) throw new Error('Evento no encontrado');
+  return { id: eventDoc.id, ...eventDoc.data() } as Event;
 };
 
 export const saveEvent = async (event_id: string): Promise<void> => {
@@ -117,6 +133,16 @@ export const updateEventStatus = async (
   status: 'pending' | 'approved'
 ): Promise<void> => {
   await updateDoc(doc(db, EVENTS_COL, id), { status });
+};
+
+export const updateEventData = async (
+  id: string,
+  eventData: Partial<Event>
+): Promise<void> => {
+  await updateDoc(doc(db, EVENTS_COL, id), {
+    ...eventData,
+    status: 'pending',
+  });
 };
 
 export const deleteEvent = async (id: string): Promise<void> => {

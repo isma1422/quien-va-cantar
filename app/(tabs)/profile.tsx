@@ -1,19 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, RefreshControl, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useRouter } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Event } from '@/services/api';
+import { Event, getMyEvents } from '@/services/api';
 import { getPendingEvents, updateEventStatus, deleteEvent } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/services/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, role, loading: authLoading } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
+  const [myEvents, setMyEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -31,11 +35,25 @@ export default function ProfileScreen() {
     setLoading(false);
   }, [role]);
 
+  const loadMyEvents = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await getMyEvents();
+      setMyEvents(data);
+    } catch(e) {}
+  }, [user]);
+
   useEffect(() => {
     if (user) {
       loadPending();
+      loadMyEvents();
     }
-  }, [user, loadPending]);
+  }, [user, loadPending, loadMyEvents]);
+
+  const onProfileRefresh = () => {
+    loadPending();
+    loadMyEvents();
+  };
 
   const validateForm = () => {
     setFeedbackMsg(null);
@@ -91,13 +109,32 @@ export default function ProfileScreen() {
   };
 
   const handleDelete = async (id: string) => {
-    await deleteEvent(id);
-    Alert.alert("Eliminado", "El evento ha sido descartado.");
-    loadPending();
+    Alert.alert("Rechazar Evento", "¿Seguro que deseas eliminar este evento pendiente?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: async () => {
+          await deleteEvent(id);
+          Alert.alert("Eliminado", "El evento ha sido descartado.");
+          loadPending();
+      }}
+    ]);
+  };
+
+  const handleCreatorDelete = async (id: string) => {
+    Alert.alert("Confirmar Eliminación", "¿Estás seguro de que deseas borrar tu evento para siempre?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Borrar", style: "destructive", onPress: async () => {
+          await deleteEvent(id);
+          Alert.alert("Eliminado", "Tu evento ha sido borrado.");
+          loadMyEvents();
+      }}
+    ]);
   };
 
   const renderPendingFeature = ({ item }: { item: Event }) => (
     <Card>
+      {item.image_url ? (
+        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
+      ) : null}
       <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
       <Text style={{ color: Colors[colorScheme].textMuted, marginBottom: Spacing.xs }}>
         {new Date(item.date).toLocaleDateString()} @ {item.place}
@@ -115,6 +152,36 @@ export default function ProfileScreen() {
           variant="outline"
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleDelete(item.id)} 
+        />
+      </View>
+    </Card>
+  );
+
+  const renderMyEvent = ({ item }: { item: Event }) => (
+    <Card key={item.id} style={{ marginBottom: Spacing.md }}>
+      {item.image_url ? (
+        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
+      ) : null}
+      <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
+         {item.title}{' '}
+         <Text style={{fontSize: 14, color: item.status === 'approved' ? Colors[colorScheme].primary : '#FF8800', fontWeight: '500'}}>
+           ({item.status === 'approved' ? 'Aprobado' : 'Pendiente'})
+         </Text>
+      </Text>
+      <Text style={{ color: Colors[colorScheme].textMuted, marginBottom: Spacing.sm }}>
+        {new Date(item.date).toLocaleDateString()} @ {item.place}
+      </Text>
+      <View style={styles.buttonRow}>
+        <Button 
+          title="Editar" 
+          style={{flex: 1, marginRight: Spacing.xs}}
+          onPress={() => router.push(`/submit?editId=${item.id}`)} 
+        />
+        <Button 
+          title="Eliminar" 
+          variant="outline"
+          style={{flex: 1, marginLeft: Spacing.xs}}
+          onPress={() => handleCreatorDelete(item.id)} 
         />
       </View>
     </Card>
@@ -172,24 +239,37 @@ export default function ProfileScreen() {
         />
       </View>
 
-      {role === 'admin' && (
-        <View style={styles.adminSection}>
-          <Text style={[styles.subtitle, { color: Colors[colorScheme].text }]}>Eventos Pendientes</Text>
-          {loading ? (
-             <ActivityIndicator size="large" color={Colors[colorScheme].primary} />
+      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={onProfileRefresh} />}>
+        <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md}}>
+            <Text style={[styles.subtitle, { color: Colors[colorScheme].text, marginBottom: 0 }]}>Mis Eventos</Text>
+            <TouchableOpacity onPress={onProfileRefresh} style={{ padding: Spacing.xs }}>
+               <FontAwesome name="refresh" size={20} color={Colors[colorScheme].primary} />
+            </TouchableOpacity>
+          </View>
+          {myEvents.length === 0 ? (
+            <Text style={{ color: Colors[colorScheme].textMuted }}>No has propuesto ningún evento aún.</Text>
           ) : (
-            <FlatList
-              data={events}
-              keyExtractor={(item) => item.id}
-              renderItem={renderPendingFeature}
-              refreshControl={<RefreshControl refreshing={loading} onRefresh={loadPending} />}
-              ListEmptyComponent={
-                <Text style={{ color: Colors[colorScheme].textMuted }}>No hay eventos pendientes.</Text>
-              }
-            />
+            myEvents.map(ev => renderMyEvent({ item: ev }))
           )}
         </View>
-      )}
+
+        {role === 'admin' && (
+          <View style={styles.adminSection}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md}}>
+              <Text style={[styles.subtitle, { color: Colors[colorScheme].text, marginBottom: 0 }]}>Administración (Pendientes)</Text>
+              <TouchableOpacity onPress={onProfileRefresh} style={{ padding: Spacing.xs }}>
+                 <FontAwesome name="refresh" size={20} color={Colors[colorScheme].primary} />
+              </TouchableOpacity>
+            </View>
+            {events.length === 0 ? (
+                <Text style={{ color: Colors[colorScheme].textMuted }}>No hay eventos pendientes.</Text>
+            ) : (
+                events.map(ev => renderPendingFeature({ item: ev }))
+            )}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -224,7 +304,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   adminSection: {
-    flex: 1,
     padding: Spacing.md,
   },
   subtitle: {

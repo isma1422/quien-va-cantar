@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
-import { Event, getEvents, saveEvent } from '@/services/api';
+import { Event, getEvents, saveEvent, getSavedEvents, unsaveEvent, deleteEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useAuth } from '@/hooks/useAuth';
 
 LocaleConfig.locales['es'] = {
   monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
@@ -18,6 +19,7 @@ LocaleConfig.locales['es'] = {
 LocaleConfig.defaultLocale = 'es';
 
 export default function EventsScreen() {
+  const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState('');
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
@@ -25,6 +27,7 @@ export default function EventsScreen() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [events, setEvents] = useState<Event[]>([]);
+  const [savedEventIds, setSavedEventIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -34,8 +37,15 @@ export default function EventsScreen() {
 
   const loadEvents = async () => {
     setLoading(true);
+    // run both calls manually instead of Promise.all to avoid silent failures
     const data = await getEvents();
     setEvents(data);
+    
+    try {
+      const saved = await getSavedEvents();
+      setSavedEventIds(new Set(saved.map(e => e.id)));
+    } catch(e) {}
+    
     setLoading(false);
   };
 
@@ -90,15 +100,40 @@ export default function EventsScreen() {
 
   const handleSaveEvent = async (id: string) => {
     try {
-      await saveEvent(id);
-      Alert.alert("Guardado", "El evento se ha añadido a tu pestaña de Guardados.");
+      if (savedEventIds.has(id)) {
+        await unsaveEvent(id);
+        const newSet = new Set(savedEventIds);
+        newSet.delete(id);
+        setSavedEventIds(newSet);
+      } else {
+        await saveEvent(id);
+        const newSet = new Set(savedEventIds);
+        newSet.add(id);
+        setSavedEventIds(newSet);
+        Alert.alert("Guardado", "El evento se ha añadido a tu pestaña de Guardados.");
+      }
     } catch (e: any) {
       Alert.alert("Aviso", "Inicia sesión para poder guardar eventos.");
     }
   }
 
-  const renderEvent = ({ item }: { item: Event }) => (
+  const handleAdminGlobalDelete = (id: string) => {
+    Alert.alert("Moderación Local", "¿Estás seguro de que quieres borrar para siempre este evento?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar", style: "destructive", onPress: async () => {
+          await deleteEvent(id);
+          loadEvents();
+      }}
+    ])
+  }
+
+  const renderEvent = ({ item }: { item: Event }) => {
+    const isSaved = savedEventIds.has(item.id);
+    return (
     <Card>
+      {item.image_url ? (
+        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
+      ) : null}
       <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
       <View style={styles.row}>
         <FontAwesome name="map-marker" size={16} color={Colors[colorScheme].icon} />
@@ -119,25 +154,36 @@ export default function EventsScreen() {
           onPress={() => Linking.openURL(item.ticket_link).catch(err => console.log(err))} 
         />
         <Button 
-          title="Guardar" 
-          variant="outline"
+          title={isSaved ? "Quitar" : "Guardar"} 
+          variant={isSaved ? "outline" : "outline"}
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleSaveEvent(item.id)} 
         />
       </View>
+      {role === 'admin' && (
+          <Button 
+            title="Eliminar Evento (Admin)"
+            variant="outline"
+            style={{marginTop: Spacing.sm, borderColor: '#FF4444'}}
+            onPress={() => handleAdminGlobalDelete(item.id)}
+          />
+      )}
     </Card>
-  );
+  )};
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', padding: Spacing.md, paddingBottom: 0 }}>
         <TextInput 
-          style={[styles.input, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, marginBottom: Spacing.sm }]}
+          style={[styles.input, { flex: 1, backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text, marginBottom: Spacing.sm, marginRight: Spacing.sm }]}
           placeholder="Buscar evento, artista o lugar..."
           placeholderTextColor={Colors[colorScheme].textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
+        <TouchableOpacity onPress={loadEvents} style={{ padding: Spacing.sm, marginBottom: Spacing.sm }}>
+          <FontAwesome name="refresh" size={24} color={Colors[colorScheme].primary} />
+        </TouchableOpacity>
       </View>
 
       {!searchQuery && (

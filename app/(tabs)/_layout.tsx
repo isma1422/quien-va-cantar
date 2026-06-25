@@ -13,7 +13,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: true, // We want to show headers for standard app feel
+        headerShown: false, // Hidden to maximize screen space for lists/calendar
         tabBarButton: HapticTab,
       }}>
       <Tabs.Screen
