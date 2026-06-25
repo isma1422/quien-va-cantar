@@ -2,14 +2,14 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Event, getMyEvents } from '@/services/api';
 import { getPendingEvents, updateEventStatus, deleteEvent } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { auth, db } from '@/services/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
@@ -23,13 +23,14 @@ export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authActionLoading, setAuthActionLoading] = useState(false);
+  const [processingEventId, setProcessingEventId] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{type: 'error'|'success', text: string} | null>(null);
 
   const colorScheme = useColorScheme() ?? 'light';
 
-  const loadPending = useCallback(async () => {
+  const loadPending = useCallback(async (showSpinner = true) => {
     if (role !== 'admin') return;
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     const data = await getPendingEvents();
     setEvents(data);
     setLoading(false);
@@ -43,12 +44,14 @@ export default function ProfileScreen() {
     } catch(e) {}
   }, [user]);
 
-  useEffect(() => {
-    if (user) {
-      loadPending();
-      loadMyEvents();
-    }
-  }, [user, loadPending, loadMyEvents]);
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadPending(false);
+        loadMyEvents();
+      }
+    }, [user, loadPending, loadMyEvents])
+  );
 
   const onProfileRefresh = () => {
     loadPending();
@@ -102,19 +105,54 @@ export default function ProfileScreen() {
      await signOut(auth);
   }
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setFeedbackMsg({type: 'error', text: "Por favor ingresa tu email primero."});
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setFeedbackMsg({type: 'error', text: "Por favor ingresa un email válido."});
+      return;
+    }
+
+    setAuthActionLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setFeedbackMsg({type: 'success', text: "Se ha enviado un correo para restablecer tu contraseña."});
+    } catch (e: any) {
+      setFeedbackMsg({type: 'error', text: `Error: ${e.message}`});
+    } finally {
+      setAuthActionLoading(false);
+    }
+  }
+
   const handleApprove = async (id: string) => {
-    await updateEventStatus(id, 'approved');
-    Alert.alert("Aprobado", "El evento ya está en el calendario.");
-    loadPending();
+    setProcessingEventId(id);
+    try {
+      await updateEventStatus(id, 'approved');
+      Alert.alert("Aprobado", "El evento ya está en el calendario.");
+      loadPending(false);
+      loadMyEvents();
+    } catch(e) {}
+    finally {
+      setProcessingEventId(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     Alert.alert("Rechazar Evento", "¿Seguro que deseas eliminar este evento pendiente?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Eliminar", style: "destructive", onPress: async () => {
-          await deleteEvent(id);
-          Alert.alert("Eliminado", "El evento ha sido descartado.");
-          loadPending();
+          setProcessingEventId(id);
+          try {
+            await deleteEvent(id);
+            Alert.alert("Eliminado", "El evento ha sido descartado.");
+            loadPending(false);
+          } catch(e) {}
+          finally {
+            setProcessingEventId(null);
+          }
       }}
     ]);
   };
@@ -123,35 +161,47 @@ export default function ProfileScreen() {
     Alert.alert("Confirmar Eliminación", "¿Estás seguro de que deseas borrar tu evento para siempre?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Borrar", style: "destructive", onPress: async () => {
-          await deleteEvent(id);
-          Alert.alert("Eliminado", "Tu evento ha sido borrado.");
-          loadMyEvents();
+          setProcessingEventId(id);
+          try {
+            await deleteEvent(id);
+            Alert.alert("Eliminado", "Tu evento ha sido borrado.");
+            loadMyEvents();
+          } catch(e) {}
+          finally {
+            setProcessingEventId(null);
+          }
       }}
     ]);
   };
 
   const renderPendingFeature = ({ item }: { item: Event }) => (
     <Card>
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
-      ) : null}
-      <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
-      <Text style={{ color: Colors[colorScheme].textMuted, marginBottom: Spacing.xs }}>
-        {new Date(item.date).toLocaleDateString()} @ {item.place}
-      </Text>
-      <Text style={{ color: Colors[colorScheme].text, marginBottom: Spacing.md }}>{item.description}</Text>
+      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>{item.title}</Text>
+          <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 12, marginBottom: 2 }}>
+            {new Date(item.date).toLocaleDateString()} @ {item.place}
+          </Text>
+        </View>
+      </View>
+      <Text style={{ color: Colors[colorScheme].text, marginBottom: Spacing.md, fontSize: 13 }} numberOfLines={2}>{item.description}</Text>
       
       <View style={styles.buttonRow}>
         <Button 
           title="Aprobar" 
           style={{flex: 1, marginRight: Spacing.xs}}
           onPress={() => handleApprove(item.id)} 
+          loading={processingEventId === item.id}
         />
         <Button 
           title="Rechazar" 
           variant="outline"
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleDelete(item.id)} 
+          loading={processingEventId === item.id}
         />
       </View>
     </Card>
@@ -159,18 +209,22 @@ export default function ProfileScreen() {
 
   const renderMyEvent = ({ item }: { item: Event }) => (
     <Card key={item.id} style={{ marginBottom: Spacing.md }}>
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
-      ) : null}
-      <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
-         {item.title}{' '}
-         <Text style={{fontSize: 14, color: item.status === 'approved' ? Colors[colorScheme].primary : '#FF8800', fontWeight: '500'}}>
-           ({item.status === 'approved' ? 'Aprobado' : 'Pendiente'})
-         </Text>
-      </Text>
-      <Text style={{ color: Colors[colorScheme].textMuted, marginBottom: Spacing.sm }}>
-        {new Date(item.date).toLocaleDateString()} @ {item.place}
-      </Text>
+      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
+             {item.title}{' '}
+             <Text style={{fontSize: 12, color: item.status === 'approved' ? Colors[colorScheme].primary : '#FF8800', fontWeight: '500'}}>
+               ({item.status === 'approved' ? 'Aprobado' : 'Pendiente'})
+             </Text>
+          </Text>
+          <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 12 }}>
+            {new Date(item.date).toLocaleDateString()} @ {item.place}
+          </Text>
+        </View>
+      </View>
       <View style={styles.buttonRow}>
         <Button 
           title="Editar" 
@@ -182,6 +236,7 @@ export default function ProfileScreen() {
           variant="outline"
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleCreatorDelete(item.id)} 
+          loading={processingEventId === item.id}
         />
       </View>
     </Card>
@@ -215,8 +270,24 @@ export default function ProfileScreen() {
            </Text>
          )}
 
-         <Button title={authActionLoading ? "Cargando..." : "Entrar"} onPress={handleLogin} disabled={authActionLoading} style={{marginTop: Spacing.md}}/>
-         <Button title="Crear cuenta nueva" variant="outline" style={{marginTop: Spacing.sm}} onPress={handleRegister} disabled={authActionLoading}/>
+          <Button title="Entrar" onPress={handleLogin} loading={authActionLoading} style={{marginTop: Spacing.md}}/>
+          
+          <TouchableOpacity 
+            onPress={handleForgotPassword} 
+            disabled={authActionLoading}
+            style={{ marginTop: Spacing.md, alignItems: 'center' }}
+          >
+            <Text style={{ color: Colors[colorScheme].primary, fontWeight: '500' }}>
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </TouchableOpacity>
+
+          <View style={{ height: 1, backgroundColor: Colors[colorScheme].border, marginVertical: Spacing.xl, opacity: 0.3 }} />
+
+          <Text style={{ color: Colors[colorScheme].textMuted, textAlign: 'center', marginBottom: Spacing.md }}>
+            ¿No tienes cuenta?
+          </Text>
+          <Button title="Crear cuenta nueva" variant="outline" onPress={handleRegister} loading={authActionLoading}/>
        </View>
     );
   }
@@ -239,7 +310,7 @@ export default function ProfileScreen() {
         />
       </View>
 
-      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={onProfileRefresh} />}>
+      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={onProfileRefresh} tintColor={Colors[colorScheme].primary} />}>
         <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
           <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md}}>
             <Text style={[styles.subtitle, { color: Colors[colorScheme].text, marginBottom: 0 }]}>Mis Eventos</Text>
@@ -319,5 +390,6 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: Spacing.md,
   }
 });

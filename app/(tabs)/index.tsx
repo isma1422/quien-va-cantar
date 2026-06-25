@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Event, getEvents, saveEvent, getSavedEvents, unsaveEvent, deleteEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
@@ -29,14 +30,18 @@ export default function EventsScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [savedEventIds, setSavedEventIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [savingEventId, setSavingEventId] = useState<string | null>(null);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const colorScheme = useColorScheme() ?? 'light';
 
-  useEffect(() => {
-    loadEvents();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadEvents(false);
+    }, [])
+  );
 
-  const loadEvents = async () => {
-    setLoading(true);
+  const loadEvents = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     // run both calls manually instead of Promise.all to avoid silent failures
     const data = await getEvents();
     setEvents(data);
@@ -99,6 +104,7 @@ export default function EventsScreen() {
   );
 
   const handleSaveEvent = async (id: string) => {
+    setSavingEventId(id);
     try {
       if (savedEventIds.has(id)) {
         await unsaveEvent(id);
@@ -114,6 +120,8 @@ export default function EventsScreen() {
       }
     } catch (e: any) {
       Alert.alert("Aviso", "Inicia sesión para poder guardar eventos.");
+    } finally {
+      setSavingEventId(null);
     }
   }
 
@@ -121,8 +129,14 @@ export default function EventsScreen() {
     Alert.alert("Moderación Local", "¿Estás seguro de que quieres borrar para siempre este evento?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Eliminar", style: "destructive", onPress: async () => {
-          await deleteEvent(id);
-          loadEvents();
+          setDeletingEventId(id);
+          try {
+            await deleteEvent(id);
+            await loadEvents(false);
+          } catch(e) {}
+          finally {
+            setDeletingEventId(null);
+          }
       }}
     ])
   }
@@ -131,21 +145,25 @@ export default function EventsScreen() {
     const isSaved = savedEventIds.has(item.id);
     return (
     <Card>
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
-      ) : null}
-      <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
-      <View style={styles.row}>
-        <FontAwesome name="map-marker" size={16} color={Colors[colorScheme].icon} />
-        <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted }]}>{item.place}</Text>
+      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={{ width: 100, height: 100, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 18 }]}>{item.title}</Text>
+          <View style={styles.row}>
+            <FontAwesome name="map-marker" size={14} color={Colors[colorScheme].icon} />
+            <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted, fontSize: 13 }]}>{item.place}</Text>
+          </View>
+          <View style={styles.row}>
+            <FontAwesome name="clock-o" size={14} color={Colors[colorScheme].icon} />
+            <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted, fontSize: 13 }]}>
+              {new Date(item.date).toLocaleDateString('es-ES')} - {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        </View>
       </View>
-      <View style={styles.row}>
-        <FontAwesome name="clock-o" size={16} color={Colors[colorScheme].icon} />
-        <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted }]}>
-          {new Date(item.date).toLocaleDateString('es-ES')} - {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      </View>
-      <Text style={[styles.eventDescription, { color: Colors[colorScheme].text }]}>{item.description}</Text>
+      <Text style={[styles.eventDescription, { color: Colors[colorScheme].text }]} numberOfLines={2}>{item.description}</Text>
       
       <View style={styles.buttonRow}>
         <Button 
@@ -158,6 +176,7 @@ export default function EventsScreen() {
           variant={isSaved ? "outline" : "outline"}
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleSaveEvent(item.id)} 
+          loading={savingEventId === item.id}
         />
       </View>
       {role === 'admin' && (
@@ -166,6 +185,7 @@ export default function EventsScreen() {
             variant="outline"
             style={{marginTop: Spacing.sm, borderColor: '#FF4444'}}
             onPress={() => handleAdminGlobalDelete(item.id)}
+            loading={deletingEventId === item.id}
           />
       )}
     </Card>
@@ -181,7 +201,7 @@ export default function EventsScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <TouchableOpacity onPress={loadEvents} style={{ padding: Spacing.sm, marginBottom: Spacing.sm }}>
+        <TouchableOpacity onPress={() => loadEvents(true)} style={{ padding: Spacing.sm, marginBottom: Spacing.sm }}>
           <FontAwesome name="refresh" size={24} color={Colors[colorScheme].primary} />
         </TouchableOpacity>
       </View>

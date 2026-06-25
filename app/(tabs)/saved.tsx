@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, FlatList, Text, StyleSheet, ActivityIndicator, Linking, RefreshControl, Image } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Event, getSavedEvents, unsaveEvent } from '@/services/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,40 +11,54 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 export default function SavedScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unsavingEventId, setUnsavingEventId] = useState<string | null>(null);
   const colorScheme = useColorScheme() ?? 'light';
 
-  const loadSavedEvents = useCallback(async () => {
-    setLoading(true);
+  const loadSavedEvents = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     const data = await getSavedEvents();
     setEvents(data);
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadSavedEvents();
-  }, [loadSavedEvents]);
+  useFocusEffect(
+    useCallback(() => {
+      loadSavedEvents(false);
+    }, [loadSavedEvents])
+  );
 
   const handleUnsave = async (id: string) => {
-    await unsaveEvent(id);
-    loadSavedEvents();
+    setUnsavingEventId(id);
+    try {
+      await unsaveEvent(id);
+      loadSavedEvents(false);
+    } catch(e) {}
+    finally {
+      setUnsavingEventId(null);
+    }
   }
 
   const renderEvent = ({ item }: { item: Event }) => (
     <Card>
-      {item.image_url ? (
-        <Image source={{ uri: item.image_url }} style={{ width: '100%', height: 160, borderRadius: 8, marginBottom: Spacing.sm }} resizeMode="cover" />
-      ) : null}
-      <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
-      <View style={styles.row}>
-        <FontAwesome name="map-marker" size={16} color={Colors[colorScheme].icon} />
-        <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted }]}>{item.place}</Text>
+      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+        {item.image_url ? (
+          <Image source={{ uri: item.image_url }} style={{ width: 100, height: 100, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 18 }]}>{item.title}</Text>
+          <View style={styles.row}>
+            <FontAwesome name="map-marker" size={14} color={Colors[colorScheme].icon} />
+            <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted, fontSize: 13 }]}>{item.place}</Text>
+          </View>
+          <View style={styles.row}>
+            <FontAwesome name="clock-o" size={14} color={Colors[colorScheme].icon} />
+            <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted, fontSize: 13 }]}>
+              {new Date(item.date).toLocaleDateString('es-ES')} - {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        </View>
       </View>
-      <View style={styles.row}>
-        <FontAwesome name="clock-o" size={16} color={Colors[colorScheme].icon} />
-        <Text style={[styles.eventDetail, { color: Colors[colorScheme].textMuted }]}>
-          {new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      </View>
+      <Text style={[styles.eventDescription, { color: Colors[colorScheme].text }]} numberOfLines={2}>{item.description}</Text>
       <View style={styles.buttonRow}>
         <Button 
           title="Comprar Entradas" 
@@ -55,6 +70,7 @@ export default function SavedScreen() {
           variant="outline"
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleUnsave(item.id)} 
+          loading={unsavingEventId === item.id}
         />
       </View>
     </Card>
@@ -62,12 +78,12 @@ export default function SavedScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <FlatList
-        data={events}
-        keyExtractor={(item) => item.id}
-        renderItem={renderEvent}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={loadSavedEvents} tintColor={Colors[colorScheme].primary} />}
+        <FlatList
+          data={events}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEvent}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => loadSavedEvents(true)} tintColor={Colors[colorScheme].primary} />}
         ListEmptyComponent={
           loading && events.length === 0 ? (
             <ActivityIndicator size="large" color={Colors[colorScheme].primary} style={{ marginTop: 20 }} />
@@ -107,6 +123,11 @@ const styles = StyleSheet.create({
   eventDetail: {
     fontSize: 14,
     marginLeft: Spacing.sm,
+  },
+  eventDescription: {
+    fontSize: 14,
+    marginVertical: Spacing.sm,
+    lineHeight: 20,
   },
   emptyText: {
     textAlign: 'center',

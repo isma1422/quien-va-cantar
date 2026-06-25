@@ -1,14 +1,15 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, TouchableOpacityProps } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, TouchableOpacityProps, ActivityIndicator } from 'react-native';
 import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
   variant?: 'primary' | 'secondary' | 'outline';
+  loading?: boolean;
 }
 
-export function Button({ title, variant = 'primary', style, ...props }: ButtonProps) {
+export function Button({ title, variant = 'primary', loading = false, style, disabled, ...props }: ButtonProps) {
   const colorScheme = useColorScheme() ?? 'light';
   
   const getBackgroundColor = () => {
@@ -36,13 +37,19 @@ export function Button({ title, variant = 'primary', style, ...props }: ButtonPr
         { 
           backgroundColor: getBackgroundColor(),
           borderColor: getBorderColor(),
-          borderWidth: variant === 'outline' ? 1 : 0
+          borderWidth: variant === 'outline' ? 1 : 0,
+          opacity: (disabled || loading) ? 0.7 : 1
         }, 
         style
       ]} 
+      disabled={disabled || loading}
       {...props}
     >
-      <Text style={[styles.text, { color: getTextColor() }]}>{title}</Text>
+      {loading ? (
+        <ActivityIndicator color={getTextColor()} />
+      ) : (
+        <Text style={[styles.text, { color: getTextColor() }]}>{title}</Text>
+      )}
     </TouchableOpacity>
   );
 }

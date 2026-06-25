@@ -190,7 +190,12 @@ export default function SubmitScreen() {
         autoCapitalize="none" keyboardType="url"
       />
 
-      <Button title={loading ? "Enviando..." : (editId ? "Confirmar Edición" : "Publicar Evento")} onPress={handleSubmit} disabled={loading} style={styles.submitBtn} />
+      <Button 
+        title={editId ? "Confirmar Edición" : "Publicar Evento"} 
+        onPress={handleSubmit} 
+        loading={loading} 
+        style={styles.submitBtn} 
+      />
     </ScrollView>
   );
 }
