@@ -8,7 +8,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Calendar } from 'react-native-calendars';
 import { useAuth } from '@/hooks/useAuth';
 
+import { useHasMounted } from '@/hooks/useHasMounted';
+
 export default function SubmitScreen() {
+  const hasMounted = useHasMounted();
   const { user, loading: authLoading } = useAuth();
   const { editId } = useLocalSearchParams();
   const [title, setTitle] = useState('');
@@ -23,6 +26,11 @@ export default function SubmitScreen() {
   
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
+
+  if (!hasMounted) {
+    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
+  }
+
 
   useEffect(() => {
     if (editId && typeof editId === 'string') {

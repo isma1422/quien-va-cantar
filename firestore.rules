@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Helper function to check if user is logged in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is the owner of the document
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Helper to get user's role from the users collection
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Helper to check if user is admin
+    function isAdmin() {
+      return isSignedIn() && (
+        getUserRole() == 'admin' || 
+        resource.data.role == 'admin'
+      );
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Events Collection
+    match /events/{eventId} {
+      // Anyone can read approved events, creators can read their own events, admins can read everything
+      allow read: if resource.data.status == 'approved' 
+                  || (isSignedIn() && resource.data.created_by == request.auth.uid)
+                  || isAdmin();
+                  
+      // Signed in users can create events under their own UID
+      allow create: if isSignedIn() 
+                    && request.resource.data.created_by == request.auth.uid
+                    && request.resource.data.status == 'pending';
+                    
+      // Creators (resets status to pending) or Admins can update/delete
+      allow update: if (isSignedIn() && resource.data.created_by == request.auth.uid 
+                        && request.resource.data.created_by == request.auth.uid
+                        && request.resource.data.status == 'pending')
+                    || isAdmin();
+                    
+      allow delete: if (isSignedIn() && resource.data.created_by == request.auth.uid) 
+                    || isAdmin();
+    }
+
+    // Saved Events Collection
+    match /saved_events/{savedEventId} {
+      allow read, write: if isSignedIn() && (
+        (resource == null && request.resource.data.user_id == request.auth.uid) ||
+        (resource != null && resource.data.user_id == request.auth.uid)
+      );
+    }
+  }
+}

@@ -13,7 +13,10 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, se
 import { doc, setDoc } from 'firebase/firestore';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
+import { useHasMounted } from '@/hooks/useHasMounted';
+
 export default function ProfileScreen() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const { user, role, loading: authLoading } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
@@ -46,12 +49,17 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user) {
+      if (user && hasMounted) {
         loadPending(false);
         loadMyEvents();
       }
-    }, [user, loadPending, loadMyEvents])
+    }, [user, hasMounted, loadPending, loadMyEvents])
   );
+
+  if (!hasMounted) {
+     return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
+  }
+
 
   const onProfileRefresh = () => {
     loadPending();

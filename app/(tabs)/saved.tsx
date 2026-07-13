@@ -8,7 +8,10 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
+import { useHasMounted } from '@/hooks/useHasMounted';
+
 export default function SavedScreen() {
+  const hasMounted = useHasMounted();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [unsavingEventId, setUnsavingEventId] = useState<string | null>(null);
@@ -23,9 +26,16 @@ export default function SavedScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadSavedEvents(false);
-    }, [loadSavedEvents])
+      if (hasMounted) {
+        loadSavedEvents(false);
+      }
+    }, [hasMounted, loadSavedEvents])
   );
+
+  if (!hasMounted) {
+    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
+  }
+
 
   const handleUnsave = async (id: string) => {
     setUnsavingEventId(id);

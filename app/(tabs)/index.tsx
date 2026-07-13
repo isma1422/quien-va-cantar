@@ -17,9 +17,12 @@ LocaleConfig.locales['es'] = {
   dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
   today: 'Hoy'
 };
+import { useHasMounted } from '@/hooks/useHasMounted';
+
 LocaleConfig.defaultLocale = 'es';
 
 export default function EventsScreen() {
+  const hasMounted = useHasMounted();
   const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState('');
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -36,9 +39,16 @@ export default function EventsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadEvents(false);
-    }, [])
+      if (hasMounted) {
+        loadEvents(false);
+      }
+    }, [hasMounted])
   );
+
+  if (!hasMounted) {
+    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
+  }
+
 
   const loadEvents = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
