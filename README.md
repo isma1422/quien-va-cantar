@@ -1,73 +1,67 @@
-# Welcome to your Expo app 👋
+# Quién Va Cantar 🎤
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Quién Va Cantar es una aplicación web y mobile diseñada para descubrir shows de música en vivo y cantores locales. Permite a los usuarios explorar eventos por fecha, guardar sus shows preferidos y enviar propuestas para sumar eventos a la cartelera.
 
-## Get started
+---
 
-1. Install dependencies
+## 🚀 Comenzando
 
-   ```bash
-   npm install
-   ```
+Sigue estos pasos para ejecutar el proyecto en tu entorno local.
 
-2. Start the app
+### 1. Requisitos Previos
+Asegúrate de tener instalado [Node.js](https://nodejs.org/) y npm en tu máquina.
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-## Running Tests
-
-We use **Jest** and **React Native Testing Library** to test components and hooks.
-
-### 1. Install dependencies
-If you haven't already, run the standard install command to download the newly added test packages:
-
+### 2. Instalar Dependencias
+Instala los paquetes necesarios definidos en el proyecto:
 ```bash
 npm install
 ```
 
-### 2. Run Tests
-You can run all tests using the following command:
+### 3. Configuración de Firebase
+El proyecto utiliza Firebase Firestore y Firebase Authentication. La configuración base se encuentra en `services/firebase.ts`. Si deseas conectar tu propio entorno:
+1. Crea un proyecto en la consola de Firebase.
+2. Crea una base de datos Firestore y activa las reglas en `firestore.rules`.
+3. Actualiza las credenciales en [services/firebase.ts](file:///home/ismael/repos/quien-va-cantar/quien-va-cantar/services/api.ts).
 
+---
+
+## 💻 Desarrollo
+
+### Iniciar Servidor de Desarrollo
+Para lanzar la aplicación en modo desarrollo en tu navegador:
+```bash
+npm run web
+```
+*También puedes utilizar `npx expo start` para escanear el código QR y probarlo en dispositivos móviles físicos vía Expo Go.*
+
+---
+
+## 🧪 Pruebas Unitarias
+
+Utilizamos **Jest** y **React Native Testing Library** para asegurar que los flujos críticos de la interfaz no sufran regresiones.
+
+### Ejecutar Suite de Tests
+Ejecuta todas las pruebas unitarias del proyecto con:
 ```bash
 npm test
 ```
 
-### 3. Testing Structure
-- **Hooks testing**: `hooks/__tests__/useHasMounted.test.ts`
-- **Component testing**: `components/ui/__tests__/WebContainer.test.tsx` and `components/ui/__tests__/Button.test.tsx`
+### Estructura de Pruebas
+* **Hooks**: `hooks/__tests__/useHasMounted.test.ts`
+* **Componentes**: 
+  * `components/ui/__tests__/WebContainer.test.tsx`
+  * `components/ui/__tests__/Button.test.tsx`
 
+---
+
+## 📦 Producción y Despliegue
+
+### Compilar para Producción
+Para compilar la aplicación como un sitio web estático optimizado para producción:
+```bash
+npm run build
+```
+Esto generará los archivos finales en la carpeta `/dist`.
+
+### Configuración Vercel
+El proyecto está configurado para alojarse de forma estática en Vercel mediante [vercel.json](file:///home/ismael/repos/quien-va-cantar/quien-va-cantar/vercel.json).
