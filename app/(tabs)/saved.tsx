@@ -107,7 +107,7 @@ export default function SavedScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <WebContainer>
+      <WebContainer style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.headerContainer}>
           <Text style={[styles.headerTitle, { color: Colors[colorScheme].text }]}>Favoritos</Text>

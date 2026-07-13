@@ -1,8 +1,8 @@
-import React, { useRef } from 'react';
-import { TouchableOpacity, Text, StyleSheet, TouchableOpacityProps, ActivityIndicator, Animated, View } from 'react-native';
-import { Colors, Spacing, BorderRadius } from '@/constants/theme';
+import { BorderRadius, Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import React, { useRef } from 'react';
+import { ActivityIndicator, Animated, StyleSheet, Text, TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
@@ -15,7 +15,7 @@ interface ButtonProps extends TouchableOpacityProps {
 export function Button({ title, variant = 'primary', loading = false, icon, size = 'md', style, disabled, ...props }: ButtonProps) {
   const colorScheme = useColorScheme() ?? 'light';
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  
+
   const getBackgroundColor = () => {
     switch (variant) {
       case 'primary': return Colors[colorScheme].primary;
@@ -59,18 +59,18 @@ export function Button({ title, variant = 'primary', loading = false, icon, size
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.button,
           isSmall && styles.buttonSm,
-          { 
+          {
             backgroundColor: getBackgroundColor(),
             borderColor: getBorderColor(),
             borderWidth: variant === 'outline' ? 1.5 : 0,
             opacity: (disabled || loading) ? 0.6 : 1,
-          }, 
+          },
           style
-        ]} 
+        ]}
         disabled={disabled || loading}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -82,15 +82,15 @@ export function Button({ title, variant = 'primary', loading = false, icon, size
         ) : (
           <View style={styles.content}>
             {icon && (
-              <FontAwesome 
-                name={icon} 
-                size={isSmall ? 13 : 15} 
-                color={getTextColor()} 
-                style={styles.icon} 
+              <FontAwesome
+                name={icon}
+                size={isSmall ? 13 : 15}
+                color={getTextColor()}
+                style={styles.icon}
               />
             )}
             <Text style={[
-              styles.text, 
+              styles.text,
               isSmall && styles.textSm,
               { color: getTextColor() }
             ]}>

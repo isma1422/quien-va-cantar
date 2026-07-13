@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { createEvent, getEventById, updateEventData } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { Colors, Spacing } from '@/constants/theme';
+import { Card } from '@/components/ui/Card';
+import { WebContainer } from '@/components/ui/WebContainer';
+import { BorderRadius, Colors, Shadows, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Calendar } from 'react-native-calendars';
 import { useAuth } from '@/hooks/useAuth';
 import { useHasMounted } from '@/hooks/useHasMounted';
-import { WebContainer } from '@/components/ui/WebContainer';
-import { Card } from '@/components/ui/Card';
-import { BorderRadius, Shadows } from '@/constants/theme';
+import { createEvent, getEventById, updateEventData } from '@/services/api';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 
 export default function SubmitScreen() {
   const hasMounted = useHasMounted();
@@ -26,31 +25,27 @@ export default function SubmitScreen() {
   const [ticket_link, setTicketLink] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
-
-  if (!hasMounted) {
-    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
-  }
 
   useEffect(() => {
     if (editId && typeof editId === 'string') {
       const loadStoredData = async () => {
-         try {
-            const ev = await getEventById(editId);
-            setTitle(ev.title);
-            setDescription(ev.description);
-            setPlace(ev.place);
-            setTicketLink(ev.ticket_link);
-            if (ev.image_url) setImageUrl(ev.image_url);
+        try {
+          const ev = await getEventById(editId);
+          setTitle(ev.title);
+          setDescription(ev.description);
+          setPlace(ev.place);
+          setTicketLink(ev.ticket_link);
+          if (ev.image_url) setImageUrl(ev.image_url);
 
-            const d = new Date(ev.date);
-            setDate(d.toISOString().split('T')[0]);
-            setTime(`${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`);
-         } catch(e: any) {
-            Alert.alert("Error", "No se pudo cargar el evento original.");
-         }
+          const d = new Date(ev.date);
+          setDate(d.toISOString().split('T')[0]);
+          setTime(`${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`);
+        } catch (e: any) {
+          Alert.alert("Error", "No se pudo cargar el evento original.");
+        }
       }
       loadStoredData();
     } else {
@@ -64,10 +59,14 @@ export default function SubmitScreen() {
     }
   }, [editId]);
 
+  if (!hasMounted) {
+    return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
+  }
+
   if (authLoading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: Colors[colorScheme].background }]}>
-        <ActivityIndicator size="large" color={Colors[colorScheme].primary}/>
+        <ActivityIndicator size="large" color={Colors[colorScheme].primary} />
       </View>
     );
   }
@@ -96,7 +95,7 @@ export default function SubmitScreen() {
       Alert.alert("Error", "Por favor completa todos los campos requeridos");
       return;
     }
-    
+
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(time)) {
       Alert.alert("Error", "La hora debe tener el formato HH:MM (ej. 20:30)");
@@ -123,7 +122,7 @@ export default function SubmitScreen() {
         });
         Alert.alert("Éxito", "¡Evento enviado para su aprobación!");
       }
-      
+
       setTitle('');
       setDescription('');
       setDate('');
@@ -150,50 +149,50 @@ export default function SubmitScreen() {
 
         <Card style={styles.formCard}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Nombre del Show / Artista *</Text>
-          <TextInput 
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
-            value={title} 
-            onChangeText={setTitle} 
-            placeholder="Ej. Noche de Jazz & Blues" 
-            placeholderTextColor={Colors[colorScheme].textMuted} 
+          <TextInput
+            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Ej. Noche de Jazz & Blues"
+            placeholderTextColor={Colors[colorScheme].textMuted}
           />
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Descripción *</Text>
-          <TextInput 
-            style={[styles.input, styles.textArea, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
-            value={description} 
-            onChangeText={setDescription} 
-            placeholder="Contanos de qué trata el show, quiénes tocan..." 
-            placeholderTextColor={Colors[colorScheme].textMuted} 
+          <TextInput
+            style={[styles.input, styles.textArea, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Contanos de qué trata el show, quiénes tocan..."
+            placeholderTextColor={Colors[colorScheme].textMuted}
             multiline
           />
 
           <View style={styles.row}>
             <View style={{ flex: 1, marginRight: Spacing.sm }}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Fecha *</Text>
-              <Button 
-                title={date ? new Date(date + 'T12:00:00Z').toLocaleDateString('es-ES') : "📅 Elegir fecha"} 
-                onPress={() => setShowCalendar(!showCalendar)} 
-                variant="outline" 
+              <Button
+                title={date ? new Date(date + 'T12:00:00Z').toLocaleDateString('es-ES') : "📅 Elegir fecha"}
+                onPress={() => setShowCalendar(!showCalendar)}
+                variant="outline"
                 style={{ height: 46, borderColor: Colors[colorScheme].inputBorder }}
               />
             </View>
             <View style={{ flex: 1, marginLeft: Spacing.sm }}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Hora (HH:MM) *</Text>
-              <TextInput 
-                style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text, height: 46 }]} 
-                value={time} 
-                onChangeText={setTime} 
-                placeholder="21:00" 
-                placeholderTextColor={Colors[colorScheme].textMuted} 
+              <TextInput
+                style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text, height: 46 }]}
+                value={time}
+                onChangeText={setTime}
+                placeholder="21:00"
+                placeholderTextColor={Colors[colorScheme].textMuted}
                 keyboardType="numbers-and-punctuation"
               />
             </View>
           </View>
-          
+
           {showCalendar && (
             <View style={[styles.calendarWrapper, Shadows.sm, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}>
-              <Calendar 
+              <Calendar
                 current={date || undefined}
                 onDayPress={(day: any) => { setDate(day.dateString); setShowCalendar(false); }}
                 markedDates={date ? { [date]: { selected: true, selectedColor: Colors[colorScheme].primary } } : {}}
@@ -213,42 +212,42 @@ export default function SubmitScreen() {
           )}
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Lugar *</Text>
-          <TextInput 
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
-            value={place} 
-            onChangeText={setPlace} 
-            placeholder="Lugar, bar o teatro (ej. Club de Música)" 
-            placeholderTextColor={Colors[colorScheme].textMuted} 
+          <TextInput
+            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            value={place}
+            onChangeText={setPlace}
+            placeholder="Lugar, bar o teatro (ej. Club de Música)"
+            placeholderTextColor={Colors[colorScheme].textMuted}
           />
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Link de Entradas o Contacto</Text>
-          <TextInput 
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
-            value={ticket_link} 
-            onChangeText={setTicketLink} 
-            placeholder="https://entradas..." 
-            placeholderTextColor={Colors[colorScheme].textMuted} 
-            autoCapitalize="none" 
+          <TextInput
+            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            value={ticket_link}
+            onChangeText={setTicketLink}
+            placeholder="https://entradas..."
+            placeholderTextColor={Colors[colorScheme].textMuted}
+            autoCapitalize="none"
             keyboardType="url"
           />
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>URL de Foto Portada (opcional)</Text>
-          <TextInput 
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
-            value={imageUrl} 
-            onChangeText={setImageUrl} 
-            placeholder="https://..." 
-            placeholderTextColor={Colors[colorScheme].textMuted} 
-            autoCapitalize="none" 
+          <TextInput
+            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            value={imageUrl}
+            onChangeText={setImageUrl}
+            placeholder="https://..."
+            placeholderTextColor={Colors[colorScheme].textMuted}
+            autoCapitalize="none"
             keyboardType="url"
           />
 
-          <Button 
-            title={editId ? "Guardar Cambios" : "Publicar Show"} 
+          <Button
+            title={editId ? "Guardar Cambios" : "Publicar Show"}
             icon={editId ? "save" : "paper-plane-o"}
-            onPress={handleSubmit} 
-            loading={loading} 
-            style={styles.submitBtn} 
+            onPress={handleSubmit}
+            loading={loading}
+            style={styles.submitBtn}
           />
         </Card>
       </WebContainer>

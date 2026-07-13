@@ -223,7 +223,7 @@ export default function EventsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <WebContainer>
+      <WebContainer style={{ flex: 1 }}>
         {/* App Title Header */}
         <View style={styles.appHeader}>
           <View>
