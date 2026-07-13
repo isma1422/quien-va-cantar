@@ -17,6 +17,7 @@ import { WebContainer } from '@/components/ui/WebContainer';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { addNotification } from '@/services/notifications';
+import { AlertModal } from '@/components/ui/AlertModal';
 
 export default function ProfileScreen() {
   const hasMounted = useHasMounted();
@@ -31,6 +32,18 @@ export default function ProfileScreen() {
   const [authActionLoading, setAuthActionLoading] = useState(false);
   const [processingEventId, setProcessingEventId] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{type: 'error'|'success', text: string} | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'danger' | 'info';
+    buttons?: Array<{ text: string; style?: 'cancel' | 'destructive' | 'default'; onPress?: () => void | Promise<void> }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
   const colorScheme = useColorScheme() ?? 'light';
 
@@ -152,7 +165,12 @@ export default function ProfileScreen() {
         ).catch(err => console.error(err));
       }
 
-      Alert.alert("Aprobado", "El evento ya está en el calendario.");
+      setAlertConfig({
+        visible: true,
+        title: "Aprobado",
+        message: "El evento ya está en el calendario.",
+        type: "success"
+      });
       loadPending(false);
       loadMyEvents();
     } catch(e) {}
@@ -178,11 +196,12 @@ export default function ProfileScreen() {
           ).catch(err => console.error(err));
         }
 
-        if (Platform.OS === 'web') {
-          alert("El evento ha sido descartado.");
-        } else {
-          Alert.alert("Eliminado", "El evento ha sido descartado.");
-        }
+        setAlertConfig({
+          visible: true,
+          title: "Eliminado",
+          message: "El evento ha sido descartado.",
+          type: "success"
+        });
         loadPending(false);
       } catch(e) {}
       finally {
@@ -190,17 +209,16 @@ export default function ProfileScreen() {
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmDelete = window.confirm("¿Seguro que deseas eliminar este evento pendiente?");
-      if (confirmDelete) {
-        await deleteAction();
-      }
-    } else {
-      Alert.alert("Rechazar Evento", "¿Seguro que deseas eliminar este evento pendiente?", [
+    setAlertConfig({
+      visible: true,
+      title: "Rechazar Evento",
+      message: "¿Seguro que deseas eliminar este evento pendiente?",
+      type: "warning",
+      buttons: [
         { text: "Cancelar", style: "cancel" },
         { text: "Eliminar", style: "destructive", onPress: deleteAction }
-      ]);
-    }
+      ]
+    });
   };
 
   const handleCreatorDelete = async (id: string) => {
@@ -208,11 +226,12 @@ export default function ProfileScreen() {
       setProcessingEventId(id);
       try {
         await deleteEvent(id);
-        if (Platform.OS === 'web') {
-          alert("Tu evento ha sido borrado.");
-        } else {
-          Alert.alert("Eliminado", "Tu evento ha sido borrado.");
-        }
+        setAlertConfig({
+          visible: true,
+          title: "Eliminado",
+          message: "Tu evento ha sido borrado.",
+          type: "success"
+        });
         loadMyEvents();
       } catch(e) {}
       finally {
@@ -220,17 +239,16 @@ export default function ProfileScreen() {
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmDelete = window.confirm("¿Estás seguro de que deseas borrar tu evento para siempre?");
-      if (confirmDelete) {
-        await deleteAction();
-      }
-    } else {
-      Alert.alert("Confirmar Eliminación", "¿Estás seguro de que deseas borrar tu evento para siempre?", [
+    setAlertConfig({
+      visible: true,
+      title: "Confirmar Eliminación",
+      message: "¿Estás seguro de que deseas borrar tu evento para siempre?",
+      type: "warning",
+      buttons: [
         { text: "Cancelar", style: "cancel" },
         { text: "Borrar", style: "destructive", onPress: deleteAction }
-      ]);
-    }
+      ]
+    });
   };
 
   const renderPendingFeature = ({ item }: { item: Event }) => (
@@ -461,6 +479,15 @@ export default function ProfileScreen() {
           )}
         </ScrollView>
       </WebContainer>
+
+      <AlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }

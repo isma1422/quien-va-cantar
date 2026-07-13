@@ -7,10 +7,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { createEvent, getEventById, updateEventData } from '@/services/api';
 import { notifyAdminsOfNewEvent } from '@/services/notifications';
+import { AlertModal } from '@/components/ui/AlertModal';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 export default function SubmitScreen() {
@@ -26,6 +27,20 @@ export default function SubmitScreen() {
   const [ticket_link, setTicketLink] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'danger' | 'info';
+    onClose?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
   const colorScheme = useColorScheme() ?? 'light';
   const router = useRouter();
@@ -45,9 +60,14 @@ export default function SubmitScreen() {
           setDate(d.toISOString().split('T')[0]);
           setTime(`${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`);
         } catch (e: any) {
-          Alert.alert("Error", "No se pudo cargar el evento original.");
+          setAlertConfig({
+            visible: true,
+            title: "Error",
+            message: "No se pudo cargar el evento original.",
+            type: "danger"
+          });
         }
-      }
+      };
       loadStoredData();
     } else {
       setTitle('');
@@ -92,18 +112,51 @@ export default function SubmitScreen() {
   }
 
   const handleSubmit = async () => {
-    if (!title || !description || !date || !time || !place) {
-      Alert.alert("Error", "Por favor completa todos los campos requeridos");
-      return;
-    }
+    const newErrors: { [key: string]: string } = {};
 
+    if (!title.trim()) newErrors.title = "El nombre del show es obligatorio";
+    if (!description.trim()) newErrors.description = "La descripción es obligatoria";
+    if (!date) newErrors.date = "La fecha es obligatoria";
+    
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(time)) {
-      Alert.alert("Error", "La hora debe tener el formato HH:MM (ej. 20:30)");
+    if (!time.trim()) {
+      newErrors.time = "La hora es obligatoria";
+    } else if (!timeRegex.test(time)) {
+      newErrors.time = "Formato de hora inválido (HH:MM)";
+    }
+
+    if (!place.trim()) newErrors.place = "El lugar del show es obligatorio";
+
+    if (ticket_link.trim()) {
+      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/;
+      if (!urlRegex.test(ticket_link)) {
+        newErrors.ticket_link = "Ingresa una URL válida (ej. https://...)";
+      }
+    }
+
+    if (imageUrl.trim()) {
+      const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/;
+      if (!urlRegex.test(imageUrl)) {
+        newErrors.imageUrl = "Ingresa una URL de imagen válida (ej. https://...)";
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setAlertConfig({
+        visible: true,
+        title: "Campos Inválidos",
+        message: "Por favor revisá los campos marcados en rojo en el formulario.",
+        type: "danger"
+      });
       return;
     }
 
+    setErrors({});
     const isoDate = `${date}T${time}:00Z`;
+    const handleSuccessRedirect = () => {
+      router.push('/');
+    };
 
     setLoading(true);
     try {
@@ -112,7 +165,13 @@ export default function SubmitScreen() {
           title, description, date: isoDate, place, ticket_link, image_url: imageUrl
         });
         await notifyAdminsOfNewEvent(editId, title, place).catch(err => console.error(err));
-        Alert.alert("Actualizado", "¡Evento editado exitosamente! Ha regresado al estado pendiente para revisión.");
+        setAlertConfig({
+          visible: true,
+          title: "Actualizado",
+          message: "¡Evento editado exitosamente! Ha regresado al estado pendiente para revisión.",
+          type: "success",
+          onClose: handleSuccessRedirect
+        });
       } else {
         const newEvent = await createEvent({
           title,
@@ -123,7 +182,13 @@ export default function SubmitScreen() {
           image_url: imageUrl,
         });
         await notifyAdminsOfNewEvent(newEvent.id, newEvent.title, newEvent.place).catch(err => console.error(err));
-        Alert.alert("Éxito", "¡Evento enviado para su aprobación!");
+        setAlertConfig({
+          visible: true,
+          title: "Éxito",
+          message: "¡Evento enviado para su aprobación!",
+          type: "success",
+          onClose: handleSuccessRedirect
+        });
       }
 
       setTitle('');
@@ -134,9 +199,13 @@ export default function SubmitScreen() {
       setPlace('');
       setTicketLink('');
       setImageUrl('');
-      router.push('/');
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      setAlertConfig({
+        visible: true,
+        title: "Error",
+        message: e.message || "Ocurrió un error al enviar el evento.",
+        type: "danger"
+      });
     } finally {
       setLoading(false);
     }
@@ -153,22 +222,45 @@ export default function SubmitScreen() {
         <Card style={styles.formCard}>
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Nombre del Show / Artista *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: Colors[colorScheme].inputBackground, 
+                borderColor: errors.title ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                color: Colors[colorScheme].text 
+              }
+            ]}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(val) => {
+              setTitle(val);
+              if (errors.title) setErrors(prev => { const c = {...prev}; delete c.title; return c; });
+            }}
             placeholder="Ej. Noche de Jazz & Blues"
             placeholderTextColor={Colors[colorScheme].textMuted}
           />
+          {!!errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Descripción *</Text>
           <TextInput
-            style={[styles.input, styles.textArea, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            style={[
+              styles.input, 
+              styles.textArea, 
+              { 
+                backgroundColor: Colors[colorScheme].inputBackground, 
+                borderColor: errors.description ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                color: Colors[colorScheme].text 
+              }
+            ]}
             value={description}
-            onChangeText={setDescription}
+            onChangeText={(val) => {
+              setDescription(val);
+              if (errors.description) setErrors(prev => { const c = {...prev}; delete c.description; return c; });
+            }}
             placeholder="Contanos de qué trata el show, quiénes tocan..."
             placeholderTextColor={Colors[colorScheme].textMuted}
             multiline
           />
+          {!!errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
 
           <View style={styles.row}>
             <View style={{ flex: 1, marginRight: Spacing.sm }}>
@@ -177,19 +269,35 @@ export default function SubmitScreen() {
                 title={date ? new Date(date + 'T12:00:00Z').toLocaleDateString('es-ES') : "📅 Elegir fecha"}
                 onPress={() => setShowCalendar(!showCalendar)}
                 variant="outline"
-                style={{ height: 46, borderColor: Colors[colorScheme].inputBorder }}
+                style={{ 
+                  height: 46, 
+                  borderColor: errors.date ? '#EF4444' : Colors[colorScheme].inputBorder 
+                }}
               />
+              {!!errors.date && <Text style={styles.errorText}>{errors.date}</Text>}
             </View>
             <View style={{ flex: 1, marginLeft: Spacing.sm }}>
               <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Hora (HH:MM) *</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text, height: 46 }]}
+                style={[
+                  styles.input, 
+                  { 
+                    backgroundColor: Colors[colorScheme].inputBackground, 
+                    borderColor: errors.time ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                    color: Colors[colorScheme].text, 
+                    height: 46 
+                  }
+                ]}
                 value={time}
-                onChangeText={setTime}
+                onChangeText={(val) => {
+                  setTime(val);
+                  if (errors.time) setErrors(prev => { const c = {...prev}; delete c.time; return c; });
+                }}
                 placeholder="21:00"
                 placeholderTextColor={Colors[colorScheme].textMuted}
                 keyboardType="numbers-and-punctuation"
               />
+              {!!errors.time && <Text style={styles.errorText}>{errors.time}</Text>}
             </View>
           </View>
 
@@ -197,7 +305,11 @@ export default function SubmitScreen() {
             <View style={[styles.calendarWrapper, Shadows.sm, { borderColor: Colors[colorScheme].border, backgroundColor: Colors[colorScheme].card }]}>
               <Calendar
                 current={date || undefined}
-                onDayPress={(day: any) => { setDate(day.dateString); setShowCalendar(false); }}
+                onDayPress={(day: any) => { 
+                  setDate(day.dateString); 
+                  setShowCalendar(false); 
+                  if (errors.date) setErrors(prev => { const c = {...prev}; delete c.date; return c; });
+                }}
                 markedDates={date ? { [date]: { selected: true, selectedColor: Colors[colorScheme].primary } } : {}}
                 theme={{
                   backgroundColor: 'transparent',
@@ -216,34 +328,67 @@ export default function SubmitScreen() {
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Lugar *</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: Colors[colorScheme].inputBackground, 
+                borderColor: errors.place ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                color: Colors[colorScheme].text 
+              }
+            ]}
             value={place}
-            onChangeText={setPlace}
+            onChangeText={(val) => {
+              setPlace(val);
+              if (errors.place) setErrors(prev => { const c = {...prev}; delete c.place; return c; });
+            }}
             placeholder="Lugar, bar o teatro (ej. Club de Música)"
             placeholderTextColor={Colors[colorScheme].textMuted}
           />
+          {!!errors.place && <Text style={styles.errorText}>{errors.place}</Text>}
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>Link de Entradas o Contacto</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: Colors[colorScheme].inputBackground, 
+                borderColor: errors.ticket_link ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                color: Colors[colorScheme].text 
+              }
+            ]}
             value={ticket_link}
-            onChangeText={setTicketLink}
+            onChangeText={(val) => {
+              setTicketLink(val);
+              if (errors.ticket_link) setErrors(prev => { const c = {...prev}; delete c.ticket_link; return c; });
+            }}
             placeholder="https://entradas..."
             placeholderTextColor={Colors[colorScheme].textMuted}
             autoCapitalize="none"
             keyboardType="url"
           />
+          {!!errors.ticket_link && <Text style={styles.errorText}>{errors.ticket_link}</Text>}
 
           <Text style={[styles.label, { color: Colors[colorScheme].text }]}>URL de Foto Portada (opcional)</Text>
           <TextInput
-            style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: Colors[colorScheme].inputBackground, 
+                borderColor: errors.imageUrl ? '#EF4444' : Colors[colorScheme].inputBorder, 
+                color: Colors[colorScheme].text 
+              }
+            ]}
             value={imageUrl}
-            onChangeText={setImageUrl}
+            onChangeText={(val) => {
+              setImageUrl(val);
+              if (errors.imageUrl) setErrors(prev => { const c = {...prev}; delete c.imageUrl; return c; });
+            }}
             placeholder="https://..."
             placeholderTextColor={Colors[colorScheme].textMuted}
             autoCapitalize="none"
             keyboardType="url"
           />
+          {!!errors.imageUrl && <Text style={styles.errorText}>{errors.imageUrl}</Text>}
 
           <Button
             title={editId ? "Guardar Cambios" : "Publicar Show"}
@@ -254,6 +399,19 @@ export default function SubmitScreen() {
           />
         </Card>
       </WebContainer>
+
+      <AlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => {
+          setAlertConfig(prev => ({ ...prev, visible: false }));
+          if (alertConfig.onClose) {
+            alertConfig.onClose();
+          }
+        }}
+      />
     </ScrollView>
   );
 }
@@ -345,5 +503,12 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: Spacing.md,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: Spacing.md,
+    fontWeight: '500',
   },
 });

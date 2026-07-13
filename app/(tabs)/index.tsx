@@ -9,6 +9,7 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useAuth } from '@/hooks/useAuth';
+import { AlertModal } from '@/components/ui/AlertModal';
 
 LocaleConfig.locales['es'] = {
   monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
@@ -44,6 +45,18 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true);
   const [savingEventId, setSavingEventId] = useState<string | null>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'danger' | 'info';
+    buttons?: Array<{ text: string; style?: 'cancel' | 'destructive' | 'default'; onPress?: () => void | Promise<void> }>;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const colorScheme = useColorScheme() ?? 'light';
@@ -150,10 +163,20 @@ export default function EventsScreen() {
           );
         }
 
-        Alert.alert("Guardado", "El evento se ha añadido a tu pestaña de Guardados.");
+        setAlertConfig({
+          visible: true,
+          title: "Guardado",
+          message: "El evento se ha añadido a tu pestaña de Guardados.",
+          type: "success"
+        });
       }
     } catch (e: any) {
-      Alert.alert("Aviso", "Inicia sesión para poder guardar eventos.");
+      setAlertConfig({
+        visible: true,
+        title: "Aviso",
+        message: "Inicia sesión para poder guardar eventos.",
+        type: "warning"
+      });
     } finally {
       setSavingEventId(null);
     }
@@ -165,23 +188,28 @@ export default function EventsScreen() {
       try {
         await deleteEvent(id);
         await loadEvents(false);
+        setAlertConfig({
+          visible: true,
+          title: "Eliminado",
+          message: "El evento ha sido eliminado permanentemente.",
+          type: "success"
+        });
       } catch(e) {}
       finally {
         setDeletingEventId(null);
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmDelete = window.confirm("¿Estás seguro de que quieres borrar para siempre este evento?");
-      if (confirmDelete) {
-        deleteAction();
-      }
-    } else {
-      Alert.alert("Moderación Local", "¿Estás seguro de que quieres borrar para siempre este evento?", [
+    setAlertConfig({
+      visible: true,
+      title: "Confirmar Eliminación",
+      message: "¿Estás seguro de que quieres borrar para siempre este evento?",
+      type: "danger",
+      buttons: [
         { text: "Cancelar", style: "cancel" },
-        { text: "Eliminar", style: "destructive", onPress: deleteAction }
-      ])
-    }
+        { text: "Borrar", style: "destructive", onPress: deleteAction }
+      ]
+    });
   }
 
   const renderEvent = ({ item }: { item: Event }) => {
@@ -380,6 +408,15 @@ export default function EventsScreen() {
         visible={notificationsVisible}
         onClose={() => setNotificationsVisible(false)}
         onNotificationsUpdated={(count) => setUnreadNotificationsCount(count)}
+      />
+
+      <AlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );
