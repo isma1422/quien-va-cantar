@@ -52,6 +52,7 @@ npm test
 * **Componentes**: 
   * `components/ui/__tests__/WebContainer.test.tsx`
   * `components/ui/__tests__/Button.test.tsx`
+  * `components/ui/__tests__/AlertModal.test.tsx`
 
 ---
 

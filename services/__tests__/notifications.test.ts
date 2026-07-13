@@ -24,7 +24,8 @@ import {
   markNotificationAsRead, 
   markAllNotificationsAsRead, 
   deleteNotification, 
-  addNotification 
+  addNotification,
+  notifyAdminsOfNewEvent
 } from '../notifications';
 
 describe('notifications service', () => {
@@ -70,5 +71,9 @@ describe('notifications service', () => {
     const updated = await deleteNotification(targetId);
     expect(updated.length).toBe(initialLength - 1);
     expect(updated.find(n => n.id === targetId)).toBeUndefined();
+  });
+
+  it('resolves cleanly for notifyAdminsOfNewEvent in test environment', async () => {
+    await expect(notifyAdminsOfNewEvent('event-123', 'Show Name', 'Bar Venue')).resolves.toBeUndefined();
   });
 });
