@@ -60,5 +60,13 @@ service cloud.firestore {
         (resource != null && resource.data.user_id == request.auth.uid)
       );
     }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isSignedIn() && (
+        (resource != null && resource.data.user_id == request.auth.uid)
+      );
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+    }
   }
 }

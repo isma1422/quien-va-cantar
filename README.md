@@ -48,6 +48,7 @@ npm test
 
 ### Estructura de Pruebas
 * **Hooks**: `hooks/__tests__/useHasMounted.test.ts`
+* **Servicios**: `services/__tests__/notifications.test.ts`
 * **Componentes**: 
   * `components/ui/__tests__/WebContainer.test.tsx`
   * `components/ui/__tests__/Button.test.tsx`

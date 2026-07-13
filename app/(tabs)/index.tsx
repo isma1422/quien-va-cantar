@@ -24,6 +24,8 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { BorderRadius, Shadows } from '@/constants/theme';
+import { NotificationsModal } from '@/components/NotificationsModal';
+import { subscribeToNotifications, addNotification } from '@/services/notifications';
 
 LocaleConfig.defaultLocale = 'es';
 
@@ -42,12 +44,18 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(true);
   const [savingEventId, setSavingEventId] = useState<string | null>(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const colorScheme = useColorScheme() ?? 'light';
 
   useFocusEffect(
     useCallback(() => {
       if (hasMounted) {
         loadEvents(false);
+        const unsubscribe = subscribeToNotifications((list) => {
+          setUnreadNotificationsCount(list.filter(n => !n.read).length);
+        });
+        return unsubscribe;
       }
     }, [hasMounted])
   );
@@ -130,6 +138,18 @@ export default function EventsScreen() {
         const newSet = new Set(savedEventIds);
         newSet.add(id);
         setSavedEventIds(newSet);
+        
+        // Trigger a mock notification for the saved event
+        const ev = events.find(e => e.id === id);
+        if (ev) {
+          await addNotification(
+            'Show Guardado',
+            `Has guardado el show "${ev.title}". Te avisaremos ante cualquier novedad o cambio de horario.`,
+            'info',
+            id
+          );
+        }
+
         Alert.alert("Guardado", "El evento se ha añadido a tu pestaña de Guardados.");
       }
     } catch (e: any) {
@@ -230,13 +250,28 @@ export default function EventsScreen() {
             <Text style={[styles.logoText, { color: Colors[colorScheme].text }]}>Quién Va Cantar</Text>
             <Text style={[styles.logoSubtitle, { color: Colors[colorScheme].textMuted }]}>Descubrí shows y cantores en vivo</Text>
           </View>
-          <TouchableOpacity 
-            onPress={() => loadEvents(true)} 
-            style={[styles.refreshBtn, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <FontAwesome name="refresh" size={16} color={Colors[colorScheme].primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              onPress={() => setNotificationsVisible(true)} 
+              style={[styles.refreshBtn, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, marginRight: Spacing.sm }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome name="bell-o" size={16} color={Colors[colorScheme].primary} />
+              {unreadNotificationsCount > 0 && (
+                <View style={[styles.badgeContainer, { backgroundColor: '#EF4444' }]}>
+                  <Text style={styles.badgeText}>{unreadNotificationsCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={() => loadEvents(true)} 
+              style={[styles.refreshBtn, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome name="refresh" size={16} color={Colors[colorScheme].primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.searchSection}>
@@ -331,6 +366,12 @@ export default function EventsScreen() {
           }
         />
       </WebContainer>
+
+      <NotificationsModal
+        visible={notificationsVisible}
+        onClose={() => setNotificationsVisible(false)}
+        onNotificationsUpdated={(count) => setUnreadNotificationsCount(count)}
+      />
     </View>
   );
 }
@@ -346,6 +387,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    borderRadius: 10,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   logoText: {
     fontSize: 24,
