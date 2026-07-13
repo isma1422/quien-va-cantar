@@ -10,7 +10,8 @@ import {
   writeBatch, 
   deleteDoc, 
   addDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  getDocs 
 } from 'firebase/firestore';
 
 export interface Notification {
@@ -197,4 +198,32 @@ export async function getNotifications(): Promise<Notification[]> {
       resolve([]);
     }
   });
+}
+
+// Notify all administrators about a newly submitted event proposal waiting for approval
+export async function notifyAdminsOfNewEvent(
+  eventId: string,
+  eventTitle: string,
+  eventPlace: string
+): Promise<void> {
+  if (isTestEnv) {
+    return;
+  }
+  try {
+    const q = query(collection(db, 'users'), where('role', '==', 'admin'));
+    const snapshot = await getDocs(q);
+    const adminIds = snapshot.docs.map(docSnapshot => docSnapshot.id);
+
+    for (const adminId of adminIds) {
+      await addNotification(
+        'Propuesta Pendiente',
+        `Se ha recibido una propuesta para el show "${eventTitle}" en "${eventPlace}".`,
+        'info',
+        eventId,
+        adminId
+      ).catch(err => console.error("Error notifying admin:", err));
+    }
+  } catch (err) {
+    console.error("Error in notifyAdminsOfNewEvent:", err);
+  }
 }

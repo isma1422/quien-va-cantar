@@ -6,6 +6,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/useAuth';
 import { useHasMounted } from '@/hooks/useHasMounted';
 import { createEvent, getEventById, updateEventData } from '@/services/api';
+import { notifyAdminsOfNewEvent } from '@/services/notifications';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -110,9 +111,10 @@ export default function SubmitScreen() {
         await updateEventData(editId, {
           title, description, date: isoDate, place, ticket_link, image_url: imageUrl
         });
+        await notifyAdminsOfNewEvent(editId, title, place).catch(err => console.error(err));
         Alert.alert("Actualizado", "¡Evento editado exitosamente! Ha regresado al estado pendiente para revisión.");
       } else {
-        await createEvent({
+        const newEvent = await createEvent({
           title,
           description,
           date: isoDate,
@@ -120,6 +122,7 @@ export default function SubmitScreen() {
           ticket_link,
           image_url: imageUrl,
         });
+        await notifyAdminsOfNewEvent(newEvent.id, newEvent.title, newEvent.place).catch(err => console.error(err));
         Alert.alert("Éxito", "¡Evento enviado para su aprobación!");
       }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Event, getEvents, saveEvent, getSavedEvents, unsaveEvent, deleteEvent } from '@/services/api';
@@ -160,19 +160,28 @@ export default function EventsScreen() {
   }
 
   const handleAdminGlobalDelete = (id: string) => {
-    Alert.alert("Moderación Local", "¿Estás seguro de que quieres borrar para siempre este evento?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: async () => {
-          setDeletingEventId(id);
-          try {
-            await deleteEvent(id);
-            await loadEvents(false);
-          } catch(e) {}
-          finally {
-            setDeletingEventId(null);
-          }
-      }}
-    ])
+    const deleteAction = async () => {
+      setDeletingEventId(id);
+      try {
+        await deleteEvent(id);
+        await loadEvents(false);
+      } catch(e) {}
+      finally {
+        setDeletingEventId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm("¿Estás seguro de que quieres borrar para siempre este evento?");
+      if (confirmDelete) {
+        deleteAction();
+      }
+    } else {
+      Alert.alert("Moderación Local", "¿Estás seguro de que quieres borrar para siempre este evento?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: deleteAction }
+      ])
+    }
   }
 
   const renderEvent = ({ item }: { item: Event }) => {

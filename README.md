@@ -55,6 +55,21 @@ npm test
 
 ---
 
+## 🔔 Sistema de Notificaciones
+
+El proyecto cuenta con un sistema híbrido de **notificaciones In-App** (persistencia en tiempo real en Firestore) y **notificaciones Push** (mediante tokens de Expo) diseñado para mantener al usuario informado sobre el estado de sus eventos.
+
+### Registro de Tokens Push
+Cuando un usuario inicia sesión, la aplicación solicita permisos nativos de notificaciones y almacena el token único de Expo en su perfil dentro del documento `/users/{uid}`.
+
+### Eventos que Disparan Notificaciones
+1. **Guardar en Favoritos**: Al presionar *"Guardar"* en la cartelera, el usuario recibe una alerta informativa (`info`) sobre el seguimiento del show.
+2. **Aprobación de Show**: Al presionar *"Aprobar"* en la pantalla de moderación, el administrador registra una alerta de éxito (`success`) destinada al creador del show.
+3. **Rechazo de Show**: Al presionar *"Rechazar"* en la pantalla de moderación, el administrador genera una alerta de aviso (`warning`) destinada al creador del show.
+4. **Propuesta Pendiente de Moderación**: Al enviar una propuesta o editar un show existente (desde la pantalla de carga), el sistema crea una notificación de información (`info`) destinada a todos los usuarios con rol `admin` indicando que hay un show esperando aprobación.
+
+---
+
 ## 📦 Producción y Despliegue
 
 ### Compilar para Producción

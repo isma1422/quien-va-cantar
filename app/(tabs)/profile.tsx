@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView, Platform } from 'react-native';
 import { Colors, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,6 +16,7 @@ import { useHasMounted } from '@/hooks/useHasMounted';
 import { WebContainer } from '@/components/ui/WebContainer';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { addNotification } from '@/services/notifications';
 
 export default function ProfileScreen() {
   const hasMounted = useHasMounted();
@@ -138,7 +139,19 @@ export default function ProfileScreen() {
   const handleApprove = async (id: string) => {
     setProcessingEventId(id);
     try {
+      const pendingEvent = events.find(e => e.id === id);
       await updateEventStatus(id, 'approved');
+
+      if (pendingEvent && pendingEvent.created_by) {
+        await addNotification(
+          '¡Show Aprobado!',
+          `Tu propuesta "${pendingEvent.title}" ha sido aprobada por el administrador y ya está visible en la cartelera.`,
+          'success',
+          id,
+          pendingEvent.created_by
+        ).catch(err => console.error(err));
+      }
+
       Alert.alert("Aprobado", "El evento ya está en el calendario.");
       loadPending(false);
       loadMyEvents();
@@ -149,37 +162,75 @@ export default function ProfileScreen() {
   };
 
   const handleDelete = async (id: string) => {
-    Alert.alert("Rechazar Evento", "¿Seguro que deseas eliminar este evento pendiente?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: async () => {
-          setProcessingEventId(id);
-          try {
-            await deleteEvent(id);
-            Alert.alert("Eliminado", "El evento ha sido descartado.");
-            loadPending(false);
-          } catch(e) {}
-          finally {
-            setProcessingEventId(null);
-          }
-      }}
-    ]);
+    const deleteAction = async () => {
+      setProcessingEventId(id);
+      try {
+        const pendingEvent = events.find(e => e.id === id);
+        await deleteEvent(id);
+
+        if (pendingEvent && pendingEvent.created_by) {
+          await addNotification(
+            'Propuesta Descartada',
+            `Tu propuesta "${pendingEvent.title}" no fue aprobada por el moderador.`,
+            'warning',
+            id,
+            pendingEvent.created_by
+          ).catch(err => console.error(err));
+        }
+
+        if (Platform.OS === 'web') {
+          alert("El evento ha sido descartado.");
+        } else {
+          Alert.alert("Eliminado", "El evento ha sido descartado.");
+        }
+        loadPending(false);
+      } catch(e) {}
+      finally {
+        setProcessingEventId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm("¿Seguro que deseas eliminar este evento pendiente?");
+      if (confirmDelete) {
+        await deleteAction();
+      }
+    } else {
+      Alert.alert("Rechazar Evento", "¿Seguro que deseas eliminar este evento pendiente?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Eliminar", style: "destructive", onPress: deleteAction }
+      ]);
+    }
   };
 
   const handleCreatorDelete = async (id: string) => {
-    Alert.alert("Confirmar Eliminación", "¿Estás seguro de que deseas borrar tu evento para siempre?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Borrar", style: "destructive", onPress: async () => {
-          setProcessingEventId(id);
-          try {
-            await deleteEvent(id);
-            Alert.alert("Eliminado", "Tu evento ha sido borrado.");
-            loadMyEvents();
-          } catch(e) {}
-          finally {
-            setProcessingEventId(null);
-          }
-      }}
-    ]);
+    const deleteAction = async () => {
+      setProcessingEventId(id);
+      try {
+        await deleteEvent(id);
+        if (Platform.OS === 'web') {
+          alert("Tu evento ha sido borrado.");
+        } else {
+          Alert.alert("Eliminado", "Tu evento ha sido borrado.");
+        }
+        loadMyEvents();
+      } catch(e) {}
+      finally {
+        setProcessingEventId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmDelete = window.confirm("¿Estás seguro de que deseas borrar tu evento para siempre?");
+      if (confirmDelete) {
+        await deleteAction();
+      }
+    } else {
+      Alert.alert("Confirmar Eliminación", "¿Estás seguro de que deseas borrar tu evento para siempre?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Borrar", style: "destructive", onPress: deleteAction }
+      ]);
+    }
   };
 
   const renderPendingFeature = ({ item }: { item: Event }) => (
@@ -344,7 +395,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <WebContainer>
+      <WebContainer style={{ flex: 1 }}>
         {/* Profile Card Header */}
         <View style={styles.header}>
           <View style={styles.profileMeta}>
