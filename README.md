@@ -48,3 +48,26 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Running Tests
+
+We use **Jest** and **React Native Testing Library** to test components and hooks.
+
+### 1. Install dependencies
+If you haven't already, run the standard install command to download the newly added test packages:
+
+```bash
+npm install
+```
+
+### 2. Run Tests
+You can run all tests using the following command:
+
+```bash
+npm test
+```
+
+### 3. Testing Structure
+- **Hooks testing**: `hooks/__tests__/useHasMounted.test.ts`
+- **Component testing**: `components/ui/__tests__/WebContainer.test.tsx` and `components/ui/__tests__/Button.test.tsx`
+
