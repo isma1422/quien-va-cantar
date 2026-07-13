@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
-import { Colors, Spacing } from '@/constants/theme';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, RefreshControl, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { Colors, Spacing, BorderRadius, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button } from '@/components/ui/Button';
@@ -12,8 +12,10 @@ import { auth, db } from '@/services/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-
 import { useHasMounted } from '@/hooks/useHasMounted';
+import { WebContainer } from '@/components/ui/WebContainer';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function ProfileScreen() {
   const hasMounted = useHasMounted();
@@ -60,7 +62,6 @@ export default function ProfileScreen() {
      return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
   }
 
-
   const onProfileRefresh = () => {
     loadPending();
     loadMyEvents();
@@ -99,7 +100,6 @@ export default function ProfileScreen() {
     setAuthActionLoading(true);
     try {
       const res = await createUserWithEmailAndPassword(auth, email, password);
-      // Create user doc defaults to basic 'user'
       await setDoc(doc(db, 'users', res.user.uid), {
          email, role: 'user'
       });
@@ -183,30 +183,38 @@ export default function ProfileScreen() {
   };
 
   const renderPendingFeature = ({ item }: { item: Event }) => (
-    <Card>
-      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
+    <Card key={item.id} style={styles.eventCard}>
+      <View style={styles.cardHeader}>
         {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>{item.title}</Text>
-          <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 12, marginBottom: 2 }}>
-            {new Date(item.date).toLocaleDateString()} @ {item.place}
+          <Image source={{ uri: item.image_url }} style={styles.eventImage} resizeMode="cover" />
+        ) : (
+          <View style={[styles.eventImagePlaceholder, { backgroundColor: Colors[colorScheme].secondary + '10' }]}>
+            <FontAwesome name="music" size={24} color={Colors[colorScheme].secondary} />
+          </View>
+        )}
+        <View style={styles.titleContainer}>
+          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
+          <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 12, fontWeight: '500' }}>
+            {new Date(item.date).toLocaleDateString('es-ES')} @ {item.place}
           </Text>
         </View>
       </View>
-      <Text style={{ color: Colors[colorScheme].text, marginBottom: Spacing.md, fontSize: 13 }} numberOfLines={2}>{item.description}</Text>
+      <Text style={{ color: Colors[colorScheme].text, marginBottom: Spacing.md, fontSize: 13, lineHeight: 18 }} numberOfLines={2}>{item.description}</Text>
       
       <View style={styles.buttonRow}>
         <Button 
           title="Aprobar" 
+          icon="check"
+          size="sm"
           style={{flex: 1, marginRight: Spacing.xs}}
           onPress={() => handleApprove(item.id)} 
           loading={processingEventId === item.id}
         />
         <Button 
           title="Rechazar" 
-          variant="outline"
+          icon="times"
+          size="sm"
+          variant="danger"
           style={{flex: 1, marginLeft: Spacing.xs}}
           onPress={() => handleDelete(item.id)} 
           loading={processingEventId === item.id}
@@ -215,140 +223,193 @@ export default function ProfileScreen() {
     </Card>
   );
 
-  const renderMyEvent = ({ item }: { item: Event }) => (
-    <Card key={item.id} style={{ marginBottom: Spacing.md }}>
-      <View style={{ flexDirection: 'row', marginBottom: Spacing.sm }}>
-        {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={{ width: 80, height: 80, borderRadius: 8, marginRight: Spacing.md }} resizeMode="cover" />
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.eventTitle, { color: Colors[colorScheme].text, fontSize: 16 }]}>
-             {item.title}{' '}
-             <Text style={{fontSize: 12, color: item.status === 'approved' ? Colors[colorScheme].primary : '#FF8800', fontWeight: '500'}}>
-               ({item.status === 'approved' ? 'Aprobado' : 'Pendiente'})
-             </Text>
-          </Text>
-          <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 12 }}>
-            {new Date(item.date).toLocaleDateString()} @ {item.place}
-          </Text>
+  const renderMyEvent = ({ item }: { item: Event }) => {
+    const isApproved = item.status === 'approved';
+    return (
+      <Card key={item.id} style={styles.eventCard}>
+        <View style={styles.cardHeader}>
+          {item.image_url ? (
+            <Image source={{ uri: item.image_url }} style={styles.eventImage} resizeMode="cover" />
+          ) : (
+            <View style={[styles.eventImagePlaceholder, { backgroundColor: Colors[colorScheme].secondary + '10' }]}>
+              <FontAwesome name="music" size={24} color={Colors[colorScheme].secondary} />
+            </View>
+          )}
+          <View style={styles.titleContainer}>
+            <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>
+               {item.title}
+            </Text>
+            <View style={styles.badgeRow}>
+              <Badge 
+                label={isApproved ? 'Aprobado' : 'Pendiente'} 
+                variant={isApproved ? 'success' : 'warning'} 
+              />
+            </View>
+          </View>
         </View>
-      </View>
-      <View style={styles.buttonRow}>
-        <Button 
-          title="Editar" 
-          style={{flex: 1, marginRight: Spacing.xs}}
-          onPress={() => router.push(`/submit?editId=${item.id}`)} 
-        />
-        <Button 
-          title="Eliminar" 
-          variant="outline"
-          style={{flex: 1, marginLeft: Spacing.xs}}
-          onPress={() => handleCreatorDelete(item.id)} 
-          loading={processingEventId === item.id}
-        />
-      </View>
-    </Card>
-  );
+        <View style={styles.buttonRow}>
+          <Button 
+            title="Editar" 
+            icon="edit"
+            size="sm"
+            style={{flex: 1, marginRight: Spacing.xs}}
+            onPress={() => router.push(`/submit?editId=${item.id}`)} 
+          />
+          <Button 
+            title="Eliminar" 
+            icon="trash"
+            size="sm"
+            variant="outline"
+            style={{flex: 1, marginLeft: Spacing.xs}}
+            onPress={() => handleCreatorDelete(item.id)} 
+            loading={processingEventId === item.id}
+          />
+        </View>
+      </Card>
+    );
+  };
 
   if (authLoading) {
-     return <View style={styles.centerContainer}><ActivityIndicator size="large" color={Colors[colorScheme].primary}/></View>
+     return (
+       <View style={[styles.centerContainer, { backgroundColor: Colors[colorScheme].background }]}>
+         <ActivityIndicator size="large" color={Colors[colorScheme].primary}/>
+       </View>
+     );
   }
 
   if (!user) {
     return (
-       <View style={[styles.container, { padding: Spacing.lg, justifyContent: 'center', backgroundColor: Colors[colorScheme].background }]}>
-         <Text style={[styles.title, { color: Colors[colorScheme].text, textAlign: 'center', marginBottom: Spacing.xxl }]}>Iniciar Sesión</Text>
-         <TextInput 
-           style={[styles.input, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]} 
-           value={email} onChangeText={setEmail} placeholder="Email" placeholderTextColor={Colors[colorScheme].textMuted} autoCapitalize="none" keyboardType="email-address"
-         />
-         <TextInput 
-           style={[styles.input, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border, color: Colors[colorScheme].text }]} 
-           value={password} onChangeText={setPassword} placeholder="Contraseña" placeholderTextColor={Colors[colorScheme].textMuted} secureTextEntry 
-         />
-         
-         {feedbackMsg && (
-           <Text style={{
-             color: feedbackMsg.type === 'error' ? '#FF4444' : '#00C851', 
-             marginBottom: Spacing.md, 
-             textAlign: 'center',
-             fontWeight: '500'
-           }}>
-             {feedbackMsg.text}
-           </Text>
-         )}
+       <View style={[styles.container, { justifyContent: 'center', backgroundColor: Colors[colorScheme].background }]}>
+         <WebContainer maxWidth={480}>
+           <Card style={styles.authCard}>
+             <View style={styles.authHeader}>
+               <View style={[styles.logoIconCircle, { backgroundColor: Colors[colorScheme].primary + '15' }]}>
+                 <FontAwesome name="user-circle" size={40} color={Colors[colorScheme].primary} />
+               </View>
+               <Text style={[styles.title, { color: Colors[colorScheme].text, textAlign: 'center' }]}>Ingresar</Text>
+               <Text style={{ color: Colors[colorScheme].textMuted, textAlign: 'center', fontSize: 14, marginTop: 4 }}>
+                 Publicá y guardá tus shows favoritos
+               </Text>
+             </View>
 
-          <Button title="Entrar" onPress={handleLogin} loading={authActionLoading} style={{marginTop: Spacing.md}}/>
-          
-          <TouchableOpacity 
-            onPress={handleForgotPassword} 
-            disabled={authActionLoading}
-            style={{ marginTop: Spacing.md, alignItems: 'center' }}
-          >
-            <Text style={{ color: Colors[colorScheme].primary, fontWeight: '500' }}>
-              ¿Olvidaste tu contraseña?
-            </Text>
-          </TouchableOpacity>
+             <TextInput 
+               style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
+               value={email} 
+               onChangeText={setEmail} 
+               placeholder="Email" 
+               placeholderTextColor={Colors[colorScheme].textMuted} 
+               autoCapitalize="none" 
+               keyboardType="email-address"
+             />
+             <TextInput 
+               style={[styles.input, { backgroundColor: Colors[colorScheme].inputBackground, borderColor: Colors[colorScheme].inputBorder, color: Colors[colorScheme].text }]} 
+               value={password} 
+               onChangeText={setPassword} 
+               placeholder="Contraseña" 
+               placeholderTextColor={Colors[colorScheme].textMuted} 
+               secureTextEntry 
+             />
+             
+             {feedbackMsg && (
+               <View style={[styles.feedbackWrapper, { backgroundColor: feedbackMsg.type === 'error' ? Colors[colorScheme].dangerLight : Colors[colorScheme].successLight }]}>
+                 <Text style={[styles.feedbackText, { color: feedbackMsg.type === 'error' ? Colors[colorScheme].danger : Colors[colorScheme].success }]}>
+                   {feedbackMsg.text}
+                 </Text>
+               </View>
+             )}
 
-          <View style={{ height: 1, backgroundColor: Colors[colorScheme].border, marginVertical: Spacing.xl, opacity: 0.3 }} />
+             <Button title="Entrar" icon="sign-in" onPress={handleLogin} loading={authActionLoading} style={{marginTop: Spacing.sm}}/>
+             
+             <TouchableOpacity 
+               onPress={handleForgotPassword} 
+               disabled={authActionLoading}
+               style={styles.forgotBtn}
+             >
+               <Text style={{ color: Colors[colorScheme].primary, fontWeight: '600', fontSize: 14 }}>
+                 ¿Olvidaste tu contraseña?
+               </Text>
+             </TouchableOpacity>
 
-          <Text style={{ color: Colors[colorScheme].textMuted, textAlign: 'center', marginBottom: Spacing.md }}>
-            ¿No tienes cuenta?
-          </Text>
-          <Button title="Crear cuenta nueva" variant="outline" onPress={handleRegister} loading={authActionLoading}/>
+             <View style={[styles.divider, { backgroundColor: Colors[colorScheme].border }]} />
+
+             <Text style={[styles.registerPrompt, { color: Colors[colorScheme].textMuted }]}>
+               ¿No tenés cuenta todavía?
+             </Text>
+             <Button title="Registrarse" icon="user-plus" variant="outline" onPress={handleRegister} loading={authActionLoading}/>
+           </Card>
+         </WebContainer>
        </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: Colors[colorScheme].text }]}>Perfil</Text>
-        <Text style={{ color: Colors[colorScheme].textMuted, fontSize: 16 }}>
-          Sesión: {user.email} 
-        </Text>
-        <Text style={{ color: Colors[colorScheme].primary, fontSize: 14, fontWeight: 'bold' }}>
-          Rol: {role.toUpperCase()}
-        </Text>
-        <Button 
-          title="Cerrar Sessión" 
-          variant="outline" 
-          style={styles.toggleBtn}
-          onPress={handleLogout} 
-        />
-      </View>
-
-      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={onProfileRefresh} tintColor={Colors[colorScheme].primary} />}>
-        <View style={{ padding: Spacing.md, paddingBottom: 0 }}>
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md}}>
-            <Text style={[styles.subtitle, { color: Colors[colorScheme].text, marginBottom: 0 }]}>Mis Eventos</Text>
-            <TouchableOpacity onPress={onProfileRefresh} style={{ padding: Spacing.xs }}>
-               <FontAwesome name="refresh" size={20} color={Colors[colorScheme].primary} />
+      <WebContainer>
+        {/* Profile Card Header */}
+        <View style={styles.header}>
+          <View style={styles.profileMeta}>
+            <View style={[styles.avatar, { backgroundColor: Colors[colorScheme].primary }]}>
+              <Text style={styles.avatarText}>{email.charAt(0).toUpperCase() || 'U'}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.profileTitle, { color: Colors[colorScheme].text }]}>Hola,</Text>
+              <Text style={[styles.profileEmail, { color: Colors[colorScheme].textMuted }]} numberOfLines={1}>
+                {user.email} 
+              </Text>
+              <View style={styles.roleBadgeRow}>
+                <Badge label={`Rol: ${role}`} variant={role === 'admin' ? 'danger' : 'info'} />
+              </View>
+            </View>
+            <TouchableOpacity onPress={handleLogout} style={styles.logoutIconBtn}>
+              <FontAwesome name="sign-out" size={22} color={Colors[colorScheme].textMuted} />
             </TouchableOpacity>
           </View>
-          {myEvents.length === 0 ? (
-            <Text style={{ color: Colors[colorScheme].textMuted }}>No has propuesto ningún evento aún.</Text>
-          ) : (
-            myEvents.map(ev => renderMyEvent({ item: ev }))
-          )}
         </View>
 
-        {role === 'admin' && (
-          <View style={styles.adminSection}>
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md}}>
-              <Text style={[styles.subtitle, { color: Colors[colorScheme].text, marginBottom: 0 }]}>Administración (Pendientes)</Text>
+        <ScrollView 
+          style={{ flex: 1 }} 
+          contentContainerStyle={{ paddingBottom: Spacing.xxl }}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={onProfileRefresh} tintColor={Colors[colorScheme].primary} />}
+        >
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.subtitle, { color: Colors[colorScheme].text }]}>Mis Eventos Propuestos</Text>
               <TouchableOpacity onPress={onProfileRefresh} style={{ padding: Spacing.xs }}>
-                 <FontAwesome name="refresh" size={20} color={Colors[colorScheme].primary} />
+                 <FontAwesome name="refresh" size={16} color={Colors[colorScheme].primary} />
               </TouchableOpacity>
             </View>
-            {events.length === 0 ? (
-                <Text style={{ color: Colors[colorScheme].textMuted }}>No hay eventos pendientes.</Text>
+            {myEvents.length === 0 ? (
+              <EmptyState 
+                icon="plus-circle" 
+                title="Sin eventos propuestos" 
+                subtitle="Todos los eventos que publiques aparecerán en esta sección." 
+              />
             ) : (
-                events.map(ev => renderPendingFeature({ item: ev }))
+              myEvents.map(ev => renderMyEvent({ item: ev }))
             )}
           </View>
-        )}
-      </ScrollView>
+
+          {role === 'admin' && (
+            <View style={[styles.section, styles.adminSection, { borderTopColor: Colors[colorScheme].border }]}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.subtitle, { color: Colors[colorScheme].text }]}>Moderación (Pendientes)</Text>
+                <TouchableOpacity onPress={onProfileRefresh} style={{ padding: Spacing.xs }}>
+                   <FontAwesome name="refresh" size={16} color={Colors[colorScheme].primary} />
+                </TouchableOpacity>
+              </View>
+              {events.length === 0 ? (
+                  <EmptyState 
+                    icon="thumbs-up" 
+                    title="Al día" 
+                    subtitle="No hay eventos pendientes de aprobación." 
+                  />
+              ) : (
+                  events.map(ev => renderPendingFeature({ item: ev }))
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </WebContainer>
     </View>
   );
 }
@@ -360,44 +421,155 @@ const styles = StyleSheet.create({
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+  },
+  authCard: {
+    marginHorizontal: Spacing.md,
+    padding: Spacing.lg,
+  },
+  authHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  logoIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   input: {
     borderWidth: 1,
-    borderRadius: Spacing.sm,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    fontSize: 16,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginBottom: Spacing.md,
+  },
+  feedbackWrapper: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  feedbackText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  forgotBtn: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+  },
+  divider: {
+    height: 1,
+    marginVertical: Spacing.lg,
+    opacity: 0.2,
+  },
+  registerPrompt: {
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    fontSize: 14,
+    fontWeight: '500',
   },
   header: {
     padding: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEE',
+    borderBottomColor: '#E5E7EB20',
   },
-  title: {
-    fontSize: 28,
+  profileMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  avatarText: {
+    color: '#ffffff',
+    fontSize: 26,
     fontWeight: 'bold',
-    marginBottom: Spacing.xs,
   },
-  toggleBtn: {
-    marginTop: Spacing.md,
+  profileTitle: {
+    fontSize: 15,
+    fontWeight: '500',
   },
-  adminSection: {
+  profileEmail: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  roleBadgeRow: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  logoutIconBtn: {
+    padding: Spacing.sm,
+  },
+  section: {
     padding: Spacing.md,
   },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Spacing.md,
   },
-  eventTitle: {
+  adminSection: {
+    borderTopWidth: 1,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.lg,
+  },
+  subtitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: Spacing.xs,
+    fontWeight: '700',
+  },
+  eventCard: {
+    marginBottom: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    marginBottom: Spacing.md,
+  },
+  eventImage: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.md,
+  },
+  eventImagePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  badgeRow: {
+    flexDirection: 'row',
   },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: Spacing.md,
-  }
+    marginTop: Spacing.sm,
+  },
 });
