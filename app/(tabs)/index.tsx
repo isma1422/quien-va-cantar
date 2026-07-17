@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image, Platform } from 'react-native';
+import { StyleSheet, View, Text, FlatList, Linking, ActivityIndicator, Alert, TextInput, RefreshControl, TouchableOpacity, Image, Platform, ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Event, getEvents, saveEvent, getSavedEvents, unsaveEvent, deleteEvent } from '@/services/api';
@@ -34,6 +34,7 @@ export default function EventsScreen() {
   const hasMounted = useHasMounted();
   const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState('');
+  const [quickFilter, setQuickFilter] = useState<'month' | 'weekend' | 'week' | 'today'>('month');
   const [showCalendar, setShowCalendar] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
@@ -76,6 +77,57 @@ export default function EventsScreen() {
   if (!hasMounted) {
     return <View style={[styles.container, { backgroundColor: Colors[colorScheme].background }]} />;
   }
+
+  const monthNamesEs = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  const getMonthYearLabel = (monthStr: string) => {
+    if (!monthStr) return '';
+    const [year, month] = monthStr.split('-');
+    const monthIndex = parseInt(month, 10) - 1;
+    return `${monthNamesEs[monthIndex]} ${year}`;
+  };
+
+  const isToday = (dateStr: string) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return dateStr === todayStr;
+  };
+
+  const isThisWeek = (dateStr: string) => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() + distanceToMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const checkDate = new Date(dateStr + 'T12:00:00Z');
+    return checkDate >= startOfWeek && checkDate <= endOfWeek;
+  };
+
+  const isThisWeekend = (dateStr: string) => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    
+    const distanceToFriday = dayOfWeek === 0 ? -2 : 5 - dayOfWeek;
+    const friday = new Date(today);
+    friday.setDate(today.getDate() + distanceToFriday);
+    friday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(friday);
+    sunday.setDate(friday.getDate() + 2);
+    sunday.setHours(23, 59, 59, 999);
+
+    const checkDate = new Date(dateStr + 'T12:00:00Z');
+    return checkDate >= friday && checkDate <= sunday;
+  };
 
   const loadEvents = async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -129,7 +181,19 @@ export default function EventsScreen() {
   const eventsForSelectedDate = selectedDate && !searchQuery
     ? events.filter((e) => new Date(e.date).toISOString().split('T')[0] === selectedDate)
     : (!searchQuery 
-        ? events.filter((e) => new Date(e.date).toISOString().startsWith(currentMonth))
+        ? events.filter((e) => {
+            const eventDateStr = new Date(e.date).toISOString().split('T')[0];
+            if (quickFilter === 'today') {
+              return isToday(eventDateStr);
+            }
+            if (quickFilter === 'week') {
+              return isThisWeek(eventDateStr);
+            }
+            if (quickFilter === 'weekend') {
+              return isThisWeekend(eventDateStr);
+            }
+            return new Date(e.date).toISOString().startsWith(currentMonth);
+          })
         : events);
 
   const filteredEvents = eventsForSelectedDate.filter(e => 
@@ -226,24 +290,34 @@ export default function EventsScreen() {
         )}
         <View style={styles.titleContainer}>
           <Text style={[styles.eventTitle, { color: Colors[colorScheme].text }]}>{item.title}</Text>
-          <View style={styles.badgeRow}>
-            <Badge label={item.place} variant="neutral" />
-          </View>
         </View>
       </View>
       
-      <View style={styles.detailsSection}>
-        <View style={styles.detailItem}>
+      <View style={styles.detailsSectionVertical}>
+        <View style={styles.detailItemVertical}>
           <FontAwesome name="calendar-o" size={14} color={Colors[colorScheme].primary} style={styles.detailIcon} />
           <Text style={[styles.eventDetailText, { color: Colors[colorScheme].textMuted }]}>
-            {new Date(item.date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {new Date(item.date).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
           </Text>
         </View>
-        <View style={styles.detailItem}>
+        <View style={styles.detailItemVertical}>
           <FontAwesome name="clock-o" size={14} color={Colors[colorScheme].primary} style={styles.detailIcon} />
           <Text style={[styles.eventDetailText, { color: Colors[colorScheme].textMuted }]}>
             {new Date(item.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} hs
           </Text>
+        </View>
+        <View style={styles.detailItemVertical}>
+          <FontAwesome name="map-marker" size={14} color={Colors[colorScheme].primary} style={styles.detailIcon} />
+          <Text style={[styles.eventDetailText, { color: Colors[colorScheme].textMuted, flex: 1 }]}>
+            {item.place}
+          </Text>
+          <TouchableOpacity 
+            onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place)}`).catch(err => console.log(err))}
+            style={[styles.mapLinkBadge, { backgroundColor: Colors[colorScheme].border + '40' }]}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.mapLinkText, { color: Colors[colorScheme].textMuted }]}>Ver en Mapa</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -311,6 +385,131 @@ export default function EventsScreen() {
           </View>
         </View>
 
+        {/* Option B: Quick Filters & Collapsible Calendar Card */}
+        {!searchQuery && (
+          <View style={[styles.calendarCard, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
+            {/* Header: Filter Context and Calendar Toggle Button */}
+            <View style={styles.calendarCardHeader}>
+              <View style={styles.filterStatusContainer}>
+                <Text style={[styles.filterStatusTitle, { color: Colors[colorScheme].text }]}>
+                  {selectedDate 
+                    ? `Filtrando: ${new Date(selectedDate + 'T12:00:00Z').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
+                    : (quickFilter === 'month' 
+                        ? getMonthYearLabel(currentMonth)
+                        : (quickFilter === 'today' 
+                            ? 'Hoy' 
+                            : (quickFilter === 'week' 
+                                ? 'Esta Semana' 
+                                : 'Este Fin de Semana')))}
+                </Text>
+              </View>
+
+              <View style={styles.calendarHeaderActions}>
+                {!!selectedDate && (
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setSelectedDate('');
+                      setQuickFilter('month');
+                    }}
+                    style={styles.clearDateBtn}
+                    activeOpacity={0.7}
+                  >
+                    <FontAwesome name="times-circle" size={18} color={Colors[colorScheme].danger} style={{ marginRight: Spacing.sm }} />
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity 
+                  onPress={() => setShowCalendar(!showCalendar)} 
+                  style={[
+                    styles.calendarToggleBtn, 
+                    { backgroundColor: showCalendar ? Colors[colorScheme].primary : Colors[colorScheme].border + '40' }
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <FontAwesome 
+                    name="calendar" 
+                    size={14} 
+                    color={showCalendar ? '#ffffff' : Colors[colorScheme].primary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Quick Filters Strip */}
+            {!showCalendar && (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.quickFiltersContainer}
+              >
+                {[
+                  { id: 'month', label: 'Todo el Mes' },
+                  { id: 'weekend', label: 'Este Finde' },
+                  { id: 'week', label: 'Esta Semana' },
+                  { id: 'today', label: 'Hoy' }
+                ].map((item) => {
+                  const isSelected = !selectedDate && quickFilter === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      onPress={() => {
+                        setSelectedDate('');
+                        setQuickFilter(item.id as any);
+                      }}
+                      style={[
+                        styles.quickFilterPill,
+                        { backgroundColor: Colors[colorScheme].border + '30' },
+                        isSelected && {
+                          backgroundColor: Colors[colorScheme].primary,
+                        }
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[
+                        styles.quickFilterText, 
+                        { color: isSelected ? '#ffffff' : Colors[colorScheme].textMuted }
+                      ]}>
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            {/* Collapsible Monthly Grid */}
+            {showCalendar && (
+              <View style={styles.expandedCalendarWrapper}>
+                <Calendar
+                  markingType={'custom'}
+                  onDayPress={(day: any) => {
+                    setSelectedDate(day.dateString);
+                    setQuickFilter('month');
+                    setShowCalendar(false);
+                  }}
+                  onMonthChange={(month: any) => setCurrentMonth(month.dateString.substring(0, 7))}
+                  markedDates={markedDates}
+                  theme={{
+                    backgroundColor: 'transparent',
+                    calendarBackground: 'transparent',
+                    textSectionTitleColor: Colors[colorScheme].primary,
+                    selectedDayBackgroundColor: Colors[colorScheme].primary,
+                    selectedDayTextColor: '#ffffff',
+                    todayTextColor: Colors[colorScheme].secondary,
+                    dayTextColor: Colors[colorScheme].text,
+                    textDisabledColor: Colors[colorScheme].textMuted + '60',
+                    monthTextColor: Colors[colorScheme].text,
+                    arrowColor: Colors[colorScheme].primary,
+                    textDayFontWeight: '500',
+                    textMonthFontWeight: 'bold',
+                    textDayHeaderFontWeight: '600',
+                  }}
+                />
+              </View>
+            )}
+          </View>
+        )}
+
         <View style={styles.searchSection}>
           <SearchBar 
             placeholder="Buscar show, artista o lugar..."
@@ -318,70 +517,11 @@ export default function EventsScreen() {
             onChangeText={(text) => {
               setSearchQuery(text);
               if (text) {
-                setShowCalendar(false); // auto-close calendar on search
+                setShowCalendar(false);
               }
             }}
           />
-          
-          {!searchQuery && (
-            <View style={styles.filterControls}>
-              <Button
-                title={selectedDate ? `Fecha: ${new Date(selectedDate + 'T12:00:00Z').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}` : "Filtrar por fecha"}
-                icon="calendar"
-                variant={selectedDate ? "primary" : "outline"}
-                size="sm"
-                onPress={() => setShowCalendar(!showCalendar)}
-                style={{ flex: 1, marginRight: selectedDate ? Spacing.sm : 0 }}
-              />
-              {!!selectedDate && (
-                <Button
-                  title="Limpiar"
-                  icon="times"
-                  variant="outline"
-                  size="sm"
-                  onPress={() => {
-                    setSelectedDate('');
-                    setShowCalendar(false);
-                  }}
-                  style={{ flex: 0.4 }}
-                />
-              )}
-            </View>
-          )}
         </View>
-
-        {!searchQuery && showCalendar && (
-          <View style={[styles.calendarContainer, Shadows.sm, { backgroundColor: Colors[colorScheme].card, borderColor: Colors[colorScheme].border }]}>
-            <Calendar
-              markingType={'custom'}
-              onDayPress={(day: any) => {
-                if (selectedDate === day.dateString) {
-                  setSelectedDate(''); // toggle filter off if clicked again
-                } else {
-                  setSelectedDate(day.dateString);
-                  setShowCalendar(false); // auto-close calendar on selection
-                }
-              }}
-              onMonthChange={(month: any) => setCurrentMonth(month.dateString.substring(0, 7))}
-              markedDates={markedDates}
-              theme={{
-                backgroundColor: 'transparent',
-                calendarBackground: 'transparent',
-                textSectionTitleColor: Colors[colorScheme].primary,
-                selectedDayBackgroundColor: Colors[colorScheme].primary,
-                selectedDayTextColor: '#ffffff',
-                todayTextColor: Colors[colorScheme].secondary,
-                dayTextColor: Colors[colorScheme].text,
-                textDisabledColor: Colors[colorScheme].textMuted + '60',
-                monthTextColor: Colors[colorScheme].text,
-                arrowColor: Colors[colorScheme].primary,
-                textDayFontWeight: '500',
-                textMonthFontWeight: 'bold',
-                textDayHeaderFontWeight: '600',
-              }}
-            />
-          </View>
-        )}
         
         <FlatList
           data={filteredEvents}
@@ -556,6 +696,86 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: Spacing.xs,
+  },
+  calendarCard: {
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  calendarCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calendarMonthText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  chevronIcon: {
+    marginLeft: Spacing.xs,
+    marginTop: 2,
+  },
+  clearDateBtn: {
+    padding: 2,
+  },
+  quickFiltersContainer: {
+    paddingVertical: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  quickFilterPill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.pill,
+    marginRight: Spacing.sm,
+  },
+  quickFilterText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterStatusContainer: {
+    flex: 1,
+  },
+  filterStatusTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  calendarHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calendarToggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandedCalendarWrapper: {
+    marginTop: Spacing.sm,
+    overflow: 'hidden',
+  },
+  detailsSectionVertical: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#E5E7EB20',
+    paddingVertical: Spacing.xs,
+    marginVertical: Spacing.xs,
+  },
+  detailItemVertical: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  mapLinkBadge: {
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: Spacing.sm,
+  },
+  mapLinkText: {
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 
